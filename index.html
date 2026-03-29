@@ -699,7 +699,6 @@ function buildAIToolsPanel(naturalQuery, primoKeyword) {
 // BOOLEAN BUILDER + PRIMO RESULTS FLOW
 // =================================================================
 async function buildBoolean(query, history){
-  const ctx = history.slice(-6).map(m=>`${m.role}: ${m.content}`).join('\n');
   const currentYear = serverYear;
 
   // Pre-clean: strip common chat prefixes
@@ -707,7 +706,7 @@ async function buildBoolean(query, history){
     .replace(/^(find articles and books on|find articles on|find books on|search for|look for|i want|i need|give me|show me)\s+/i, '')
     .trim();
 
-  // === PROGRAMMATIC BOOLEAN BUILDER (always runs, used as fallback or primary) ===
+  // === PROGRAMMATIC BOOLEAN BUILDER — always available, no LLM needed ===
   function makeBoolean(text) {
     const stopRE = /^(of|on|in|the|a|an|and|or|for|to|with|by|from|at|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|its|this|that|these|those|about|impact|effect|role|influence|importance|use|application|study|analysis|review|what|how|why|when|where|which)$/i;
     const words = text.split(/\s+/);
@@ -724,68 +723,59 @@ async function buildBoolean(query, history){
     if (phrase.length > 0) concepts.push(phrase.join(' '));
     if (concepts.length >= 2) return concepts.map(c => `"${c}"`).join(' AND ');
     if (concepts.length === 1) return `"${concepts[0]}"`;
-    return text;
+    return `"${text}"`;
   }
 
-  // === SINGLE LLM CALL: spell-correct + build Boolean + extract metadata ===
-  const prompt = `You are a search expert for Khalifa University Library. Do these tasks for the query below:
+  function isValidBool(b) {
+    return b && /\b(AND|OR)\b/.test(b) && b.includes('(');
+  }
 
-TASK A — Spell-correct the query (fix ALL typos)
-TASK B — Build a PRIMO Boolean search string
-TASK C — Extract filters
+  // === PRIMARY: HF Space /correct endpoint (separate OpenAI quota from Cloudflare) ===
+  try {
+    const r = await fetchWithRetry(RAG_URL + '/correct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: cleanedQuery, year: currentYear })
+    });
+    document.getElementById('warm-msg')?.remove();
+    if (r && r.ok) {
+      const result = await r.json();
+      const corrected = result.corrected || cleanedQuery;
+      const boolean = isValidBool(result.boolean) ? result.boolean : makeBoolean(corrected);
+      return {
+        corrected, boolean,
+        natural: result.natural || corrected,
+        year_from: result.year_from || '',
+        year_to: result.year_to || '',
+        peer_reviewed: !!result.peer_reviewed,
+        open_access: !!result.open_access,
+        explanation: result.explanation || '',
+      };
+    }
+  } catch(e) {
+    console.warn('HF /correct failed, trying Cloudflare LLM:', e.message);
+  }
 
-BOOLEAN RULES (critical):
-- Split query into 2-3 main concept groups
-- Each group: (mainTerm OR synonym1 OR synonym2)  
-- Join groups with AND
-- Use quotes around multi-word phrases
-- Do NOT include connecting words like "impact of", "role of", "effect on"
-
-EXAMPLES:
-Query: "impppact of demonetization on Indian economy"
-corrected: "impact of demonetization on Indian economy"
-boolean: (demonetization OR "currency reform" OR "banknote ban") AND ("Indian economy" OR India OR GDP)
-
-Query: "machine lerning helthcare"
-corrected: "machine learning in healthcare"
-boolean: ("machine learning" OR "deep learning" OR AI) AND (healthcare OR clinical OR medical)
-
-Query: "globbal warming UAE agricultur"
-corrected: "global warming UAE agriculture"
-boolean: ("global warming" OR "climate change") AND (UAE OR "United Arab Emirates") AND (agriculture OR "food security")
-
-Query: "renewble energy develping countries last 5 years peer reviewed"
-corrected: "renewable energy developing countries"
-boolean: ("renewable energy" OR "solar energy" OR "clean energy") AND ("developing countries" OR "emerging economies")
-year_from: ${currentYear-5}
-peer_reviewed: true
-
-NOW process this query:
+  // === FALLBACK: Cloudflare Worker LLM ===
+  try {
+    const ctx = history.slice(-4).map(m=>`${m.role}: ${m.content}`).join('\n');
+    const prompt = `Fix ALL spelling mistakes in this query, then build a PRIMO Boolean.
+BOOLEAN: (mainTerm OR synonym) AND (mainTerm2 OR synonym2) — use AND/OR/parentheses.
+Examples:
+"impuct glubal waming" → boolean: ("global warming" OR "climate change") AND (impact OR effect)
+"machne lerning helthcare" → boolean: ("machine learning" OR AI) AND (healthcare OR clinical)
 Query: "${cleanedQuery}"
 Context: ${ctx}
+Return ONLY JSON: {"corrected":"fixed","boolean":"(A OR B) AND (C OR D)","natural":"title","year_from":"","year_to":"","peer_reviewed":false,"open_access":false}`;
 
-Return ONLY this JSON (no markdown):
-{"corrected":"spell-fixed query","boolean":"(A OR B) AND (C OR D)","natural":"plain English title","year_from":"","year_to":"","peer_reviewed":false,"open_access":false,"explanation":"one line"}`;
-
-  try {
-    const txt = await callLLM({messages:[{role:'user', content:prompt}], max_tokens:400});
+    const txt = await callLLM({messages:[{role:'user', content:prompt}], max_tokens:300});
     const s = txt.indexOf('{'), e = txt.lastIndexOf('}');
-    if(s === -1) throw new Error('no_json');
+    if (s === -1) throw new Error('no_json');
     const result = JSON.parse(txt.substring(s, e+1));
-
     const corrected = result.corrected || cleanedQuery;
-    let boolean = (result.boolean || '').trim();
-
-    // Validate boolean — must have AND/OR and parentheses
-    const isValid = /\b(AND|OR)\b/.test(boolean) && boolean.includes('(');
-    if (!isValid || !boolean) {
-      // LLM didn't produce valid Boolean — build programmatically
-      boolean = makeBoolean(corrected);
-    }
-
+    const boolean = isValidBool(result.boolean) ? result.boolean : makeBoolean(corrected);
     return {
-      corrected,
-      boolean,
+      corrected, boolean,
       natural: result.natural || corrected,
       year_from: result.year_from || '',
       year_to: result.year_to || '',
@@ -794,10 +784,17 @@ Return ONLY this JSON (no markdown):
       explanation: result.explanation || '',
     };
   } catch(e) {
-    // Full fallback — no LLM available
-    const boolean = makeBoolean(cleanedQuery);
-    return { corrected: cleanedQuery, boolean, natural: cleanedQuery, year_from: '', year_to: '', peer_reviewed: false, open_access: false, explanation: '' };
+    console.warn('All LLM calls failed, using programmatic Boolean:', e.message);
   }
+
+  // === FULL FALLBACK: programmatic only ===
+  return {
+    corrected: cleanedQuery,
+    boolean: makeBoolean(cleanedQuery),
+    natural: cleanedQuery,
+    year_from: '', year_to: '',
+    peer_reviewed: false, open_access: false, explanation: ''
+  };
 }
 
 // =================================================================
