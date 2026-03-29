@@ -863,14 +863,16 @@ const CONTENT_FIRST_RE=/^(articles?|papers?|books?|journals?|studies|publication
 // Fix: catches "I want articles on X", "I need papers about X" — verb then content type
 const WANT_CONTENT_RE=/\b(i want|i need|i'd like|i am looking for|looking for|find me|get me)\s+(some\s+)?(articles?|papers?|books?|journals?|research|studies|publications?)\b/i;
 
-// Fix: catches "what is the impact/effect/role of X" style research questions
-// These are research topics, not general knowledge questions — route to search
-const RESEARCH_QUESTION_RE=/\b(what is the (impact|effect|role|influence|relationship|correlation|use|application|importance|benefit|challenge|advantage|disadvantage|significance) of|how does .{1,30} (affect|impact|influence|relate to)|why (is|are|does|do) .{1,30} (important|used|considered)|what are the (causes?|effects?|impacts?|benefits?|challenges?|advantages?|disadvantages?|applications?) of)\b/i;
+// Fix: catches "what is/are/re the impact/effect/role of X" — handles typos like "what re"
+const RESEARCH_QUESTION_RE=/\b(what (is|are|re|were|was) the (impact|effect|role|influence|relationship|use|application|importance|benefit|challenge|advantage|disadvantage|significance|impacts?|effects?|benefits?|causes?|challenges?|consequences?|implications?) of|how does .{1,30} (affect|impact|influence|relate to)|why (is|are|does|do) .{1,30} (important|used|considered))\b/i;
+
+// Fix: catches noun-first research queries — "impacts of X", "effects of AI on Y", "global warming effects on UAE"
+const NOUN_FIRST_RE=/\b(impact|effect|role|influence|importance|benefit|challenge|advantage|disadvantage|consequence|implication|application|cause|result|outcome)(s)?\s+(of|on|in|for)\s+\S/i;
 
 // Fix: catches "research on X", "literature on X", "studies on X" standalone
 const RESEARCH_TOPIC_RE=/\b(research|literature|studies|papers?|articles?|publications?)\s+(on|about|regarding|related to)\s+\S/i;
 
-// Fix: LIBRARY_RE — removed 'return' which was matching "I want articles" queries
+// Fix: LIBRARY_RE — phrase-based, not word-based to avoid false matches
 const LIBRARY_RE=/\b(room booking|reserve a room|study room|library hours|opening hours|interlibrary loan|ill request|library account|overdue fine|renew book|borrow limit|orcid|khazna|open access publishing|apc funding|library newsletter|library tour|alumni access|ask a librarian|library contact|library information about|how do i access|how to access|can i access|remote access|off.?campus|vpn|proxy server|thesis submission|dissertation submit|refworks|zotero|mendeley|endnote|citation manager|research consultation|information literacy session)\b/i;
 
 const DB_INFO_RE=/\b(what is|tell me about|explain|info on|information on|how (?:do i use|does|to use))\b.{0,40}(database|e.?resource|library portal|primo|scopus|web of science|ieee xplore|pubmed|sciencedirect|elsevier|springer|wiley|jstor)/i;
@@ -886,9 +888,8 @@ async function routeQuery(msg, history){
   if(CONTENT_FIRST_RE.test(msg)) return 'search';
   if(WANT_CONTENT_RE.test(msg)) return 'search';
   if(RESEARCH_TOPIC_RE.test(msg)) return 'search';
-
-  // Research questions ("what is the impact of X") — route to search
   if(RESEARCH_QUESTION_RE.test(msg)) return 'search';
+  if(NOUN_FIRST_RE.test(msg)) return 'search';
 
   // LLM classifier for anything else
   try{
@@ -1098,7 +1099,7 @@ async function sendChat(){
       }
     } else if(intent==='clarify'){
       const topic=msg.replace(/\b(what is|tell me about|explain|about|i want to know|can you tell me|could you explain)\b/gi,'').trim()||msg;
-      addMsg('bot',`I can help with <strong>${topic}</strong>! What would you like? ${badge()}<div style="display:flex;flex-direction:column;gap:7px;margin-top:10px"><button onclick="chip('Find articles and books on ${topic}')" style="padding:8px 12px;background:var(--ku-blue);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">📚 Search library databases & resources</button><button onclick="chip('Library information about ${topic}')" style="padding:8px 12px;background:#E1F5EE;color:#0F6E56;border:1.5px solid #6ee7b7;border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">🏛️ Library services & information</button><button onclick="chip('Give me a general explanation of ${topic}')" style="padding:8px 12px;background:#f0f4f8;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">💡 General explanation (AI knowledge)</button></div>`);
+      addMsg('bot',`I can help with <strong>${topic}</strong>! What would you like? ${badge()}<div style="display:flex;flex-direction:column;gap:7px;margin-top:10px"><button onclick="chip('Find articles and books on ${topic}')" style="padding:8px 12px;background:var(--ku-blue);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">📚 Find articles &amp; books on ${topic}</button><button onclick="chip('What are the library hours?')" style="padding:8px 12px;background:#E1F5EE;color:#0F6E56;border:1.5px solid #6ee7b7;border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">🏛️ Library services &amp; information</button><button onclick="chip('Give me a general explanation of ${topic}')" style="padding:8px 12px;background:#f0f4f8;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">💡 General explanation</button></div>`);
       chatHist.push({role:'assistant',content:`What would you like about ${topic}? Library resources or a general explanation?`});
       logToAdmin(msg,'clarify');
     } else {
