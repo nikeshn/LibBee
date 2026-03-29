@@ -392,16 +392,42 @@ async function callClaudeWebSearch(messages, system) {
 // =================================================================
 // RAG KNOWLEDGE QUERY (via HuggingFace Space)
 // =================================================================
+// Fix 10: fetch with cold-start retry — HF free tier sleeps after inactivity
+async function fetchWithRetry(url, options, retries=2, delayMs=4000) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      const r = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+      return r;
+    } catch (e) {
+      if (attempt === retries) throw e;
+      // Show warming message on first retry
+      if (attempt === 0) {
+        const cm = document.getElementById('chatMsgs');
+        const warm = document.createElement('div');
+        warm.id = 'warm-msg';
+        warm.className = 'msg bot';
+        warm.innerHTML = `<div class="av">⏳</div><div class="bub" style="font-size:.82rem;color:var(--mu)">The AI service is waking up — this may take 10–15 seconds on first use. Please wait…</div>`;
+        cm?.appendChild(warm); cm && (cm.scrollTop = 9999);
+      }
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+  }
+}
+
 async function callRAG(question) {
   const model = activeModel === 'claude' ? 'claude' : 'gpt';
-  // Send last 5 messages for context
   const history = chatHist.slice(-5).map(m => ({ role: m.role, content: m.content }));
-  const r = await fetch(RAG_URL + '/rag', {
+  const r = await fetchWithRetry(RAG_URL + '/rag', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, model, history })
   });
-  if (!r.ok) throw new Error('RAG service unavailable');
+  // Remove warming message if shown
+  document.getElementById('warm-msg')?.remove();
+  if (!r || !r.ok) throw new Error('RAG service unavailable — please try again in a moment');
   const data = await r.json();
   if (data.error && !data.answer) throw new Error(data.error);
   let html = fmt(data.answer);
@@ -471,31 +497,33 @@ function genCitation(r, style='apa') {
   return `${auth} (${yr}). ${title}. ${src}`;
 }
 
-function renderResultCard(r, idx) {
+function renderResultCard(r, idx, sid) {
   const doiLink = r.doi ? `https://doi.org/${r.doi}` : (r.link || r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : null);
   const titleLink = doiLink ? `<a href="${doiLink}" target="_blank">${r.title}</a>` : (r.link ? `<a href="${r.link}" target="_blank">${r.title}</a>` : r.title);
   const srcBadge = r._source ? `<span class="rcard-tag" style="background:${{'PRIMO':'#fef3c7','PubMed':'#d1fae5','Google Scholar':'#e0e7ff'}[r._source]||'var(--bg)'};color:${{'PRIMO':'#92400e','PubMed':'#065f46','Google Scholar':'#3730a3'}[r._source]||'var(--mu)'}">${r._source}</span>` : '';
   const citeBadge = r.citations ? `<span class="rcard-tag" style="background:#fef3c7;color:#92400e">Cited: ${r.citations}</span>` : '';
-  return `<div class="rcard" id="rc${idx}">
+  const cid = sid ? `${sid}_${idx}` : `global_${idx}`;
+  return `<div class="rcard" id="rc${cid}">
     <div class="rcard-title">${titleLink}</div>
     <div class="rcard-meta"><strong>${r.creator||'Unknown'}</strong> · ${r.date||''} · ${r.type||'Article'}</div>
     ${r.source?`<div class="rcard-meta">${r.source}${r.volume?' Vol.'+r.volume:''}${r.issue?'('+r.issue+')':''}</div>`:''}
     ${r.description?`<div class="rcard-desc">${r.description}</div>`:''}
     <div class="rcard-tags">${srcBadge}${citeBadge}${r.openaccess?'<span class="rcard-tag oa">Open Access</span>':''}${r.type?`<span class="rcard-tag">${r.type}</span>`:''}</div>
     <div class="rcard-actions">
-      <button class="rcard-btn" onclick="showCite(${idx},'apa')">APA</button>
-      <button class="rcard-btn" onclick="showCite(${idx},'ieee')">IEEE</button>
-      <button class="rcard-btn" onclick="showCite(${idx},'harvard')">Harvard</button>
+      <button class="rcard-btn" onclick="showCite('${sid||'global'}',${idx},'apa')">APA</button>
+      <button class="rcard-btn" onclick="showCite('${sid||'global'}',${idx},'ieee')">IEEE</button>
+      <button class="rcard-btn" onclick="showCite('${sid||'global'}',${idx},'harvard')">Harvard</button>
     </div>
-    <div id="cite${idx}"></div>
+    <div id="cite${cid}"></div>
   </div>`;
 }
 
-window._primoResults = [];
-function showCite(idx, style) {
-  const r = window._primoResults[idx];
+window._primoResults = window._primoResults || {};
+function showCite(sid, idx, style) {
+  const bucket = window._primoResults[sid] || [];
+  const r = bucket[idx];
   if(!r) return;
-  document.getElementById('cite'+idx).innerHTML = `<div class="cite-box">${genCitation(r,style)}</div>`;
+  document.getElementById('cite'+sid+'_'+idx).innerHTML = `<div class="cite-box">${genCitation(r,style)}</div>`;
 }
 
 // =================================================================
@@ -620,28 +648,29 @@ async function doSearchSource(sid, source, loadEl) {
   const sp = (window._sp||{})[sid];
   if (!sp) return;
   const area = loadEl.querySelector('#primo-results-area');
+  const maxR = parseInt(botConfig.max_results||'5');
   try {
     let data;
     if (source === 'primo') {
-      data = await searchPRIMO(sp.q, {pr:sp.pr, oa:sp.oa, yf:sp.yf, yt:sp.yt, limit:5});
+      data = await searchPRIMO(sp.q, {pr:sp.pr, oa:sp.oa, yf:sp.yf, yt:sp.yt, limit:maxR});
     } else {
-      // MCP sources (PubMed, Consensus, Semantic Scholar) work best with natural language
       const queryForMCP = sp.orig || sp.q;
-      const r = await fetch(RAG_URL+'/search', {
+      const r = await fetchWithRetry(RAG_URL+'/search', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({query:queryForMCP, source, limit:5, peer_reviewed:sp.pr, open_access:sp.oa, year_from:sp.yf, year_to:sp.yt})
+        body: JSON.stringify({query:queryForMCP, source, limit:maxR, peer_reviewed:sp.pr, open_access:sp.oa, year_from:sp.yf, year_to:sp.yt})
       });
+      document.getElementById('warm-msg')?.remove();
       data = await r.json();
     }
 
-    window._primoResults = data.results || [];
+    window._primoResults[sid] = data.results || [];
     const srcLabel = data.source || source;
     const cnt = data.results?.length || 0;
     const tot = data.total || 0;
 
     if (cnt > 0) {
       let html = `<div style="font-size:.82rem;font-weight:700;color:var(--ku-blue);margin:10px 0 6px">📄 ${srcLabel}: Top ${cnt} of ${tot.toLocaleString()} results</div>`;
-      html += data.results.map((r,i) => renderResultCard(r, i)).join('');
+      html += data.results.map((r,i) => renderResultCard(r, i, sid)).join('');
 
       // "View all" links based on source
       if (source === 'primo' && sp.bool) {
@@ -719,13 +748,25 @@ function getWelcomeHTML() {
 // =================================================================
 function streamText(el, html, speed=12) {
   return new Promise(resolve => {
+    // Extract plain text for streaming, but render HTML tags inline as we go
+    // Strategy: stream word-by-word using a temp div, reveal html at natural breakpoints
     const tmp = document.createElement('div'); tmp.innerHTML = html;
-    const text = tmp.textContent;
+    const words = tmp.textContent.split(/(\s+)/);
     el.innerHTML = '';
     let i = 0;
+    // Build a plain-text running buffer and map positions to html
+    const plainText = tmp.textContent;
+    let charCount = 0;
     const timer = setInterval(() => {
-      if (i >= text.length) { clearInterval(timer); el.innerHTML = html; resolve(); return; }
-      el.textContent += text[i]; i++;
+      if (charCount >= plainText.length) {
+        clearInterval(timer);
+        el.innerHTML = html; // final render with full HTML
+        resolve();
+        return;
+      }
+      // Advance by ~2 chars per tick for smooth feel
+      charCount = Math.min(charCount + 2, plainText.length);
+      el.textContent = plainText.substring(0, charCount);
     }, speed);
   });
 }
@@ -734,6 +775,8 @@ function streamText(el, html, speed=12) {
 // CHAT
 // =================================================================
 let chatHist=[];
+const MAX_HIST = 20; // Fix 13: cap history to prevent unbounded token growth
+function trimChatHist() { if (chatHist.length > MAX_HIST) chatHist = chatHist.slice(-MAX_HIST); }
 function clearChat(){
   chatHist=[];
   document.getElementById('chatMsgs').innerHTML = getWelcomeHTML();
@@ -761,6 +804,7 @@ async function sendChat(){
   inp.value='';addMsg('user',msg);document.getElementById('chips').style.display='none';
   const cm=document.getElementById('chatMsgs');
   chatHist.push({role:'user',content:String(msg)});
+  trimChatHist(); // Fix 13: keep history bounded
 
   // 1. FAQ match (instant, free)
   const faq = FAQ_KB.find(f => f.q.test(msg));
@@ -890,17 +934,21 @@ async function doSearch(){
   const q=document.getElementById('sIn').value.trim();if(!q){alert('Enter a search term');return;}
   const pr=document.getElementById('sPR').checked,oa=document.getElementById('sOA').checked;
   const yf=document.getElementById('sYF').value.trim(),yt=document.getElementById('sYT').value.trim();
+  // Fix 11: apply admin max_results config
+  const maxR = parseInt(botConfig.max_results||'10');
   document.getElementById('sResults').innerHTML='';document.getElementById('sStatus').textContent='⏳ Building query…';
   let p;try{p=await buildBoolean(q,[]);}catch(e){p={boolean:q,explanation:''};}
   document.getElementById('sStatus').textContent='⏳ Searching PRIMO…';
   const bool=p.boolean||q;
+  // Fix 9: use scoped sid for search tab results
+  const sid='ST'+Date.now();
   let html=buildSearchCard(bool,p.explanation||'',p.corrected||q,q,yf||p.year_from,yt||p.year_to,pr||p.peer_reviewed,oa||p.open_access,false);
   try{
-    const data=await searchPRIMO(bool.replace(/[()"]/g,'').replace(/\b(AND|OR)\b/g,' ').trim(),{pr:pr||p.peer_reviewed,oa:oa||p.open_access,yf:yf||p.year_from,yt:yt||p.year_to,limit:10});
-    window._primoResults=data.results||[];
+    const data=await searchPRIMO(bool.replace(/[()"]/g,'').replace(/\b(AND|OR)\b/g,' ').trim(),{pr:pr||p.peer_reviewed,oa:oa||p.open_access,yf:yf||p.year_from,yt:yt||p.year_to,limit:maxR});
+    window._primoResults[sid]=data.results||[];
     if(data.results?.length){
       html+=`<div style="font-size:.84rem;font-weight:700;color:var(--ku-blue);margin:12px 0 6px">📄 ${data.total.toLocaleString()} results found — showing top ${data.results.length}:</div>`;
-      html+=data.results.map((r,i)=>renderResultCard(r,i)).join('');
+      html+=data.results.map((r,i)=>renderResultCard(r,i,sid)).join('');
     }
   }catch(e){html+=`<div style="font-size:.78rem;color:var(--mu);margin-top:8px">PRIMO API: ${e.message}</div>`;}
   document.getElementById('sStatus').textContent='';
