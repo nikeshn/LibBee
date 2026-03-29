@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>KU Library AI Assistant</title>
+<title>Ask LibBee — KU Library AI</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--ku-gold:#C8A951;--ku-dark:#1A1A2E;--ku-blue:#003366;--t:#0EA5E9;--bg:#F0F4F8;--txt:#1a1a2e;--mu:#6b7280;--br:#d1d5db;--radius:14px}
@@ -140,8 +140,8 @@ header{background:var(--ku-blue);color:#fff;padding:10px 16px;display:flex;align
 </head>
 <body>
 <header>
-  <div class="hdr-logo">KU</div>
-  <div class="hdr-text"><h1>Library AI Assistant</h1><p>Khalifa University Libraries</p></div>
+  <div class="hdr-logo" style="background:none;padding:0;overflow:hidden"><img src="libbee.png" alt="LibBee" style="width:42px;height:42px;object-fit:contain;border-radius:8px"></div>
+  <div class="hdr-text"><h1>Ask LibBee 🐝</h1><p>Khalifa University Library AI</p></div>
   <div class="model-switcher">
     <button class="model-opt" id="btnClaude" onclick="switchModel('claude')">Claude</button>
     <button class="model-opt active-gpt" id="btnGPT" onclick="switchModel('gpt')">ChatGPT</button>
@@ -149,8 +149,8 @@ header{background:var(--ku-blue);color:#fff;padding:10px 16px;display:flex;align
   <a class="hdr-acct" href="https://khalifa.primo.exlibrisgroup.com/discovery/account?vid=971KUOSTAR_INST:KU&section=overview" target="_blank">👤 My Account</a>
 </header>
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('chat')">🤖 KU Library AI</div>
-  <div class="tab" onclick="switchTab('search')">🔍 Search</div>
+  <div class="tab active" onclick="switchTab('chat')">🐝 Ask LibBee</div>
+  <div class="tab" onclick="switchTab('search')">🔍 AI Search — Articles & Books</div>
   <div class="tab" onclick="switchTab('guides')">📚 Guides</div>
   <div class="tab" onclick="switchTab('services')">🏛️ Services</div>
   <div class="tab" onclick="switchTab('eresources')">🗄️ Databases</div>
@@ -165,14 +165,15 @@ header{background:var(--ku-blue);color:#fff;padding:10px 16px;display:flex;align
       </div></div>
     </div>
     <div class="chips" id="chips">
-      <div class="chip" onclick="chip('I want to find articles')">📄 Find articles</div>
-      <div class="chip" onclick="chip('I want to find books')">📗 Find books</div>
+      <div class="chip" onclick="chip('Find articles and books')">📚 Find Articles &amp; Books</div>
       <div class="chip" onclick="chip('What are the library hours?')">⏰ Library hours</div>
       <div class="chip" onclick="chip('How do I reserve a study room?')">🚪 Room booking</div>
       <div class="chip" onclick="chip('How do I publish open access at Khalifa University?')">📤 OA publishing support</div>
+      <a class="chip" href="https://library.ku.ac.ae/aitools" target="_blank" style="text-decoration:none">🤖 AI Research Tools</a>
+      <a class="chip" href="https://library.ku.ac.ae/AskUs" target="_blank" style="text-decoration:none">💬 Contact a Librarian</a>
     </div>
     <div class="cin">
-      <button class="clr" onclick="clearChat()">🗑️ Clear</button>
+      <button class="clr" onclick="clearChat()">🗑️ Clear Chat</button>
       <input type="text" id="chatIn" placeholder="Ask me anything…" onkeydown="if(event.key==='Enter')sendChat()" />
       <button class="send" onclick="sendChat()">➤</button>
     </div>
