@@ -1262,28 +1262,36 @@ function showFollowUps(intent, originalMsg){
 // Search recovery banner — appears after general answers
 // Lets user trigger a library search with one click from the topic in their message
 function showSearchRecovery(originalMsg, cm) {
-  // Strip common question prefixes to get the core topic
-  const topic = originalMsg
-    .replace(/^(what is the (impact|effect|role|influence|importance|significance|benefit|challenge|use|application) of|what are the (effects?|impacts?|benefits?|causes?|applications?|impacts?) of|how does .{1,20} (affect|impact|influence)|tell me about|explain|what is|what are|give me a? (general )?(explanation|overview|summary) (of|about|on)?)\s*/i, '')
-    .replace(/[?.!]+$/, '')
-    .trim()
-    || originalMsg.trim();
+  // Show the raw message as display (user already knows what they asked)
+  const displayMsg = originalMsg.length > 60 ? originalMsg.substring(0, 57) + '…' : originalMsg;
 
-  // Cap topic length for display
-  const displayTopic = topic.length > 50 ? topic.substring(0, 47) + '…' : topic;
-
-  // Pass the clean topic directly — NOT prefixed with "Find articles and books on"
-  // buildBoolean now handles prefix stripping, but cleaner input = better Boolean output
-  const escapedTopic = topic.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  // Escape for use in onclick — single quotes escaped
+  const escapedMsg = originalMsg.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
   const recovery = document.createElement('div');
   recovery.className = 'search-recovery';
   recovery.innerHTML = `
-    <span class="search-recovery-text">📚 Want academic sources on <em>"${displayTopic}"</em>?</span>
-    <button class="search-recovery-btn" onclick="chip('${escapedTopic}')">
+    <span class="search-recovery-text">📚 Want academic sources on <em>"${displayMsg}"</em>?</span>
+    <button class="search-recovery-btn" onclick="directSearch('${escapedMsg}')">
       🔍 Search Library Resources
     </button>`;
   cm.appendChild(recovery);
+}
+
+// directSearch — bypasses routeQuery entirely, goes straight to fullSearch
+// Used by recovery banner so misspelled queries don't get misrouted
+// buildBoolean inside executeSearch will correct spelling automatically
+async function directSearch(msg) {
+  const inp = document.getElementById('chatIn');
+  const cm  = document.getElementById('chatMsgs');
+  // Show user message bubble
+  addMsg('user', msg);
+  chatHist.push({role:'user', content:String(msg)});
+  trimChatHist();
+  document.getElementById('chips').style.display = 'none';
+  // Go straight to fullSearch — no routing step
+  await fullSearch(msg, chatHist, cm);
+  logToAdmin(msg, 'search_recovery');
 }
 
 // =================================================================
