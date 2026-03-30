@@ -33,8 +33,10 @@ header{background:var(--ku-blue);color:#fff;padding:10px 16px;display:flex;align
 .bub{padding:9px 13px;border-radius:16px;font-size:.86rem;line-height:1.6}
 .msg.bot .bub{background:#fff;border:1px solid var(--br);border-top-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .msg.user .bub{background:var(--ku-blue);color:#fff;border-top-right-radius:4px}
-.typing{display:flex;gap:4px;padding:4px 0}.typing span{width:6px;height:6px;background:var(--ku-gold);border-radius:50%;animation:bounce 1.2s infinite}
+.typing{display:flex;gap:4px;padding:4px 0;align-items:center}.typing span{width:7px;height:7px;background:var(--ku-gold);border-radius:50%;animation:bounce 1.2s infinite;flex-shrink:0}
 .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+.status-text{font-size:.78rem;color:var(--mu);margin-left:8px;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
 @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
 .followups{display:flex;flex-wrap:wrap;gap:5px;padding:2px 12px 8px 50px}
 .fq{padding:4px 10px;border-radius:20px;font-size:.72rem;border:1.5px solid var(--ku-blue);color:var(--ku-blue);cursor:pointer;background:#fff;transition:all .2s}
@@ -451,15 +453,14 @@ async function callRAG(question) {
   });
   // Remove warming message if shown
   document.getElementById('warm-msg')?.remove();
-  if (!r || !r.ok) throw new Error('RAG service unavailable — please try again in a moment');
+  if (!r || !r.ok) throw new Error('RAG service unavailable');
   const data = await r.json();
+  // has_answer=false means KB had no relevant content — fall through to general LLM
+  if (data.has_answer === false || !data.answer) throw new Error('no_library_answer');
   if (data.error && !data.answer) throw new Error(data.error);
   let html = fmt(data.answer);
   if (data.sources && data.sources.length > 0) {
     html += '<div style="margin-top:8px;font-size:.75rem;color:var(--mu)"><strong>Source:</strong> <a href="https://library.ku.ac.ae/" target="_blank" style="color:var(--t)">Khalifa University Library</a></div>';
-  }
-  if (data.model_used && data.model_used !== model) {
-    html += ` <span style="font-size:.66rem;color:var(--mu)">(used ${data.model_used})</span>`;
   }
   return html;
 }
@@ -838,7 +839,7 @@ async function executeSearch(query, opts={}) {
 async function fullSearch(msg, chatHist, cm) {
   const loadEl = document.createElement('div');
   loadEl.className = 'msg bot'; loadEl.style.maxWidth = '96%';
-  loadEl.innerHTML = `<div class="av">🔍</div><div class="scard"><div class="typing" style="padding:8px 0"><span></span><span></span><span></span></div><div style="font-size:.8rem;color:var(--mu)">Building search query… ${badge()}</div></div>`;
+  loadEl.innerHTML = `<div class="av">🔍</div><div class="scard"><div class="typing" style="padding:8px 0"><span></span><span></span><span></span><span class="status-text" id="fs-status">✏️ Correcting spelling &amp; building Boolean query…</span></div></div>`;
   cm.appendChild(loadEl); cm.scrollTop = cm.scrollHeight;
 
   let progressData = {};
@@ -953,143 +954,59 @@ async function doSearchSource(sid, source, loadEl) {
 const DB_LIST=['sciencedirect','ieee','scopus','web of science','springer','nature journal','wiley','taylor francis','pubmed','embase','cinahl','clinicalkey','cochrane','uptodate','acm digital','scifinder','scival','jstor','proquest','emerald','knovel','ebsco','elsevier','arxiv','zendy','mdpi','asme','asce','astm','aiaa','aip','aps journal','medline','database','e-resource','eresource'];
 function isDBQuery(msg){const l=msg.toLowerCase();return DB_LIST.some(d=>l.includes(d));}
 
-// Fix: SEARCH_RE — verb + content type (existing pattern)
-const SEARCH_RE=/\b(find|search for|look for|show me|get me|i need|i want|give me|locate|recommend|suggest|looking for)\b.{0,40}(article|book|paper|journal|research|literature|publication|study|studies|resources|databases?|sources?)/i;
-
-// Fix: catches "articles on X", "papers on X", "books on X" without a verb
+// Explicit search intent — user clearly wants articles/books/papers
+const EXPLICIT_SEARCH_RE=/\b(find|search for|look for|show me|get me|give me|locate|recommend|suggest)\b.{0,50}(article|book|paper|journal|research|literature|publication|study|studies|sources?|databases?)/i;
 const CONTENT_FIRST_RE=/^(articles?|papers?|books?|journals?|studies|publications?|research)\s+(on|about|regarding|related to|concerning)\s+\S/i;
+const WANT_CONTENT_RE=/\b(find me|get me|i need|i want|i'd like|i am looking for|looking for)\s+(some\s+)?(articles?|papers?|books?|journals?|research|studies|publications?)\b/i;
 
-// Fix: catches "I want articles on X", "I need papers about X" — verb then content type
-const WANT_CONTENT_RE=/\b(i want|i need|i'd like|i am looking for|looking for|find me|get me)\s+(some\s+)?(articles?|papers?|books?|journals?|research|studies|publications?)\b/i;
 
-// Fix: catches "what is/are/re the impact/effect/role of X" — handles typos like "what re"
-const RESEARCH_QUESTION_RE=/\b(what (is|are|re|were|was) the (impact|effect|role|influence|relationship|use|application|importance|benefit|challenge|advantage|disadvantage|significance|impacts?|effects?|benefits?|causes?|challenges?|consequences?|implications?) of|how does .{1,30} (affect|impact|influence|relate to)|why (is|are|does|do) .{1,30} (important|used|considered))\b/i;
 
-// Fix: catches noun-first research queries — "impacts of X", "effects of AI on Y", "global warming effects on UAE"
-const NOUN_FIRST_RE=/\b(impact|effect|role|influence|importance|benefit|challenge|advantage|disadvantage|consequence|implication|application|cause|result|outcome)(s)?\s+(of|on|in|for)\s+\S/i;
 
-// Fix: catches "research on X", "literature on X", "studies on X" standalone
-const RESEARCH_TOPIC_RE=/\b(research|literature|studies|papers?|articles?|publications?)\s+(on|about|regarding|related to)\s+\S/i;
-
-// Fix: LIBRARY_RE — phrase-based, not word-based to avoid false matches
-const LIBRARY_RE=/\b(room booking|reserve a room|study room|library hours|opening hours|interlibrary loan|ill request|library account|overdue fine|renew book|borrow limit|orcid|khazna|open access publishing|apc funding|library newsletter|library tour|alumni access|ask a librarian|library contact|library information about|how do i access|how to access|can i access|remote access|off.?campus|vpn|proxy server|thesis submission|dissertation submit|refworks|zotero|mendeley|endnote|citation manager|research consultation|information literacy session)\b/i;
-
-const DB_INFO_RE=/\b(what is|tell me about|explain|info on|information on|how (?:do i use|does|to use))\b.{0,40}(database|e.?resource|library portal|primo|scopus|web of science|ieee xplore|pubmed|sciencedirect|elsevier|springer|wiley|jstor)/i;
-
-async function routeQuery(msg, history){
-  // Order matters — most specific first
-  if(isDBQuery(msg)) return 'library';
-  if(LIBRARY_RE.test(msg)) return 'library';
-  if(DB_INFO_RE.test(msg)) return 'library';
-
-  // All search patterns
-  if(SEARCH_RE.test(msg)) return 'search';
-  if(CONTENT_FIRST_RE.test(msg)) return 'search';
-  if(WANT_CONTENT_RE.test(msg)) return 'search';
-  if(RESEARCH_TOPIC_RE.test(msg)) return 'search';
-  if(RESEARCH_QUESTION_RE.test(msg)) return 'search';
-  if(NOUN_FIRST_RE.test(msg)) return 'search';
-
-  // LLM classifier for anything else
-  try{
-    const ctx = history.slice(-4).map(m=>`${m.role}: ${m.content}`).join('\n');
-    const txt = await callLLM({messages:[{role:'user',content:`You are routing messages for the Khalifa University (KU) Library chatbot. KU = Khalifa University, Abu Dhabi.\n\nRouting rules:\n- "search": user CLEARLY wants to find books, articles, or papers on a SPECIFIC topic with an explicit search intent (e.g. "find articles on AI", "search for papers about climate change", "I need books on Python").\n- "library": user asks about library services, databases, hours, borrowing, accounts, tools, staff, policies, RefWorks, ORCID, ILL.\n- "general": user wants a factual/conversational answer and clearly does NOT want library resources (e.g. greetings, simple questions like "what is X" where the user just wants a quick explanation, not research papers).\n- "clarify": use when the user mentions a topic/subject WITHOUT a clear action — unclear if they want (a) articles/books, (b) library service info, or (c) a general explanation. When in doubt, return "clarify" — better to ask than to guess.\n\nExamples returning "clarify": "machine learning", "climate change", "what is blockchain", "tell me about CRISPR", "renewable energy", "I want to know about open access", "what is the impact of AI".\nExamples returning "search": "find papers on machine learning", "articles about climate change", "I need books on renewable energy".\nExamples returning "library": "how do I borrow a book", "what databases does KU have", "library hours", "how do I access Scopus".\n\nContext:\n${ctx}\nMessage: "${msg}"\n\nReturn ONLY valid JSON: {"intent":"search|library|general|clarify"}`}],max_tokens:80});
-    const s=txt.indexOf('{'), e=txt.lastIndexOf('}');
-    if(s===-1) return 'general';
-    const intent = JSON.parse(txt.substring(s,e+1)).intent || 'general';
-    if(intent === 'clarify' && msg.trim().split(' ').length <= 4) return 'general';
-    return intent;
-  }catch(e){ return 'general'; }
+// Add "Find articles or books on this?" button after any answer
+function addFindResourcesBtn(msg) {
+  const safeTopic = msg.replace(/'/g, "\'").substring(0, 120);
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--br)">
+    <button onclick="chip('Find articles and books on ${safeTopic}')" 
+      style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer;white-space:nowrap">
+      📚 Find articles &amp; books on this
+    </button>
+  </div>`;
 }
 
-// =================================================================
-// AGENTS — dynamic config from admin
-// =================================================================
-let botConfig = {};
-// Fix 6: authoritative year from server — avoids wrong year on devices with bad clocks
-let serverYear = new Date().getFullYear(); // safe fallback until /year responds
-async function loadServerYear() {
-  try {
-    const r = await fetch(RAG_URL + '/year');
-    if (r.ok) { const d = await r.json(); serverYear = d.year; }
-  } catch(e) { console.warn('Year fetch failed, using client year:', serverYear); }
+
+// ── Status message helper — updates the text inside a loading bubble ──
+const STATUS_MESSAGES = {
+  thinking:   ['🔍 Searching library knowledge base…', '📚 Looking through library resources…', '🐝 LibBee is thinking…'],
+  rag:        ['📖 Checking library knowledge base…', '🔎 Searching library FAQ & guides…'],
+  llm:        ['💭 Generating answer…', '✍️ Writing response…', '🤖 Asking the AI…'],
+  search:     ['🔤 Correcting spelling…', '🔧 Building Boolean query…', '🔍 Searching PRIMO…'],
+  webSearch:  ['🌐 Searching the web…', '📡 Fetching latest information…'],
+};
+
+function setStatusText(tid, key, index=0) {
+  const el = document.getElementById(tid);
+  if (!el) return;
+  const msgs = STATUS_MESSAGES[key] || STATUS_MESSAGES.thinking;
+  const msg = msgs[index % msgs.length];
+  let st = el.querySelector('.status-text');
+  if (!st) {
+    st = document.createElement('span');
+    st.className = 'status-text';
+    const typing = el.querySelector('.typing');
+    if (typing) typing.appendChild(st);
+  }
+  st.textContent = msg;
 }
 
-let LIB_SYS=`You are the Khalifa University (KU) Library Assistant in Abu Dhabi, UAE. KU = Khalifa University, NOT Kuwait University. Answer in 2-3 sentences with links. Never mention proxy/on-campus/off-campus.\nHours: https://library.ku.ac.ae/hours | Rooms: https://library.ku.ac.ae/rooms/ | ILL: https://library.ku.ac.ae/ill/ | Account: https://khalifa.primo.exlibrisgroup.com/discovery/account?vid=971KUOSTAR_INST:KU | OA: https://library.ku.ac.ae/oa/ | Ask: https://library.ku.ac.ae/AskUs | E-resources: https://library.ku.ac.ae/eresources`;
-let GEN_SYS=`You are the Khalifa University Library Assistant, Abu Dhabi, UAE. KU = Khalifa University. Answer factually in 3-5 sentences. Only if the topic is clearly academic or researchable, add ONE sentence at the end offering to find library resources.`;
-
-async function loadBotConfig() {
-  try {
-    const r = await fetch(RAG_URL + '/config');
-    if (r.ok) {
-      botConfig = await r.json();
-      // Apply dynamic system prompts
-      if (botConfig.bot_personality) {
-        const extra = botConfig.custom_instructions ? '\n\nAdditional instructions: ' + botConfig.custom_instructions : '';
-        LIB_SYS = botConfig.bot_personality + extra + '\nHours: https://library.ku.ac.ae/hours | Rooms: https://library.ku.ac.ae/rooms/ | ILL: https://library.ku.ac.ae/ill/ | Account: https://khalifa.primo.exlibrisgroup.com/discovery/account?vid=971KUOSTAR_INST:KU | OA: https://library.ku.ac.ae/oa/ | Ask: https://library.ku.ac.ae/AskUs | E-resources: https://library.ku.ac.ae/eresources';
-        GEN_SYS = botConfig.bot_personality + extra + '\nAnswer factually in 3-5 sentences. Only if the topic is clearly academic or researchable, add ONE sentence at the end offering to find library resources.';
-      }
-      // Apply default model
-      if (botConfig.default_model) switchModel(botConfig.default_model);
-    }
-  } catch(e) { console.warn('Config fetch failed, using defaults:', e.message); }
-}
-
-function getWelcomeHTML() {
-  const welcome = botConfig.welcome_message || "Hello! I'm the <strong>Khalifa University Library AI Assistant</strong> 👋<br><br>I can help with finding books, articles, library services, and research. Just ask!";
-  const announce = botConfig.announcement ? `<div style="margin-bottom:10px;padding:8px 12px;background:#fef3c7;border-left:3px solid #C8A951;border-radius:6px;font-size:.8rem;color:#92400e">📢 ${botConfig.announcement}</div>` : '';
-  return `<div class="msg bot"><div class="av" style="background:transparent"><img src="data:image/png;base64,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" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%"></div><div class="bub">${announce}${welcome}<br><br><span style="font-size:.75rem;color:var(--mu)">Switch between <strong style="color:#10A37F">ChatGPT</strong> and <strong style="color:#D97706">Claude</strong> above.</span></div></div>`;
-}
-
-// =================================================================
-// STREAMING TEXT REVEAL
-// =================================================================
-function streamText(el, html, speed=12) {
-  return new Promise(resolve => {
-    // Extract plain text for streaming, but render HTML tags inline as we go
-    // Strategy: stream word-by-word using a temp div, reveal html at natural breakpoints
-    const tmp = document.createElement('div'); tmp.innerHTML = html;
-    const words = tmp.textContent.split(/(\s+)/);
-    el.innerHTML = '';
-    let i = 0;
-    // Build a plain-text running buffer and map positions to html
-    const plainText = tmp.textContent;
-    let charCount = 0;
-    const timer = setInterval(() => {
-      if (charCount >= plainText.length) {
-        clearInterval(timer);
-        el.innerHTML = html; // final render with full HTML
-        resolve();
-        return;
-      }
-      // Advance by ~2 chars per tick for smooth feel
-      charCount = Math.min(charCount + 2, plainText.length);
-      el.textContent = plainText.substring(0, charCount);
-    }, speed);
-  });
-}
-
-// =================================================================
-// CHAT
-// =================================================================
-let chatHist=[];
-const MAX_HIST = 20; // Fix 13: cap history to prevent unbounded token growth
-function trimChatHist() { if (chatHist.length > MAX_HIST) chatHist = chatHist.slice(-MAX_HIST); }
-function clearChat(){
-  chatHist=[];
-  document.getElementById('chatMsgs').innerHTML = getWelcomeHTML();
-  document.getElementById('chips').style.display='flex';
-}
-// Load config + server year in parallel, then show welcome
-Promise.all([loadBotConfig(), loadServerYear()]).then(() => {
-  document.getElementById('chatMsgs').innerHTML = getWelcomeHTML();
-});
-// Log every query to Cloudflare D1 analytics
-function logToAdmin(question, tool, resultCount=0, error=null) {
-  fetch(W + '/log', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({question, tool, model: activeModel, response_time: 0, result_count: resultCount, error})
-  }).catch(() => {}); // fire and forget
+function cycleStatus(tid, key, intervalMs=3000) {
+  let i = 0;
+  setStatusText(tid, key, i);
+  const timer = setInterval(() => {
+    if (!document.getElementById(tid)) { clearInterval(timer); return; }
+    i++;
+    setStatusText(tid, key, i);
+  }, intervalMs);
+  return timer; // call clearInterval(timer) when done
 }
 
 async function sendChat(){
@@ -1178,78 +1095,66 @@ async function sendChat(){
   // 5. Typing indicator + route
   const tid='ty'+Date.now();
   const te=document.createElement('div');te.className='msg bot';te.id=tid;
-  te.innerHTML=`<div class="av" style="background:transparent"><img src="data:image/png;base64,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" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%"></div><div class="bub"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  te.innerHTML=`<div class="av" style="background:transparent"><img src="data:image/png;base64,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" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%"></div><div class="bub"><div class="typing"><span></span><span></span><span></span><span class="status-text">🐝 LibBee is thinking…</span></div></div>`;
   cm.appendChild(te);cm.scrollTop=cm.scrollHeight;
+  const statusTimer = cycleStatus(tid, 'thinking', 2500);
 
   try{
-    const intent=await routeQuery(msg,chatHist);
-    document.getElementById(tid)?.remove();
-
-    if(intent==='search'){
+    // ── STEP 1: Explicit search? Only if user clearly wants articles/books ──
+    if(EXPLICIT_SEARCH_RE.test(msg) || CONTENT_FIRST_RE.test(msg) || WANT_CONTENT_RE.test(msg)){
+      clearInterval(statusTimer); document.getElementById(tid)?.remove();
       await fullSearch(msg, chatHist, cm);
-    } else if(intent==='library'){
-      // Try RAG first (grounded in real KU docs), fallback to LLM
-      try {
-        const ragAnswer = await callRAG(msg);
-        chatHist.push({role:'assistant',content:ragAnswer});
-        addBotStreamed(ragAnswer+' '+badge()+' <span class="model-badge" style="background:#E1F5EE;color:#0F6E56">RAG</span>'); logToAdmin(msg,'rag',1); showFollowUps('library');
-      } catch(ragErr) {
-        console.warn('RAG failed, using LLM:', ragErr.message);
-        const reply=await callLLM({system:LIB_SYS,messages:chatHist,max_tokens:300});
-        chatHist.push({role:'assistant',content:reply});
-        addBotStreamed(fmt(reply)+' '+badge()); logToAdmin(msg,'llm_library',1); showFollowUps('library');
-      }
-    } else if(intent==='clarify'){
-      const topic=msg.replace(/\b(what is|what are|tell me about|explain|about|i want to know|can you tell me|could you explain|i want to learn|i am interested in)\b/gi,'').replace(/[?!.]+$/,'').trim()||msg;
-      const safeTopic = topic.replace(/'/g,"\'");
-      addMsg('bot',`Sure! Just to point you in the right direction — what would you like to do with <strong>${topic}</strong>? ${badge()}<div style="display:flex;flex-direction:column;gap:7px;margin-top:10px"><button onclick="chip('Find articles and books on ${safeTopic}')" style="padding:8px 12px;background:var(--ku-blue);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">📚 Find academic articles &amp; books on this</button><button onclick="chip('What library services or databases are available for ${safeTopic}')" style="padding:8px 12px;background:#E1F5EE;color:#0F6E56;border:1.5px solid #6ee7b7;border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">🗄️ Which library databases cover this?</button><button onclick="chip('Give me a general explanation of ${safeTopic}')" style="padding:8px 12px;background:#f0f4f8;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:10px;cursor:pointer;font-weight:600;font-size:.8rem;text-align:left">💡 Explain this to me (general answer)</button></div>`);
-      chatHist.push({role:'assistant',content:`What would you like about ${topic}? I can find academic articles and books, suggest relevant databases, or give a general explanation.`});
-      logToAdmin(msg,'clarify');
-    } else {
-      // General question — use multi-tool agent first, fall back to web search / LLM
-      try {
-        const agentResult = await callAgent(msg);
-        const correctedQuery = agentResult.correctedQuery || msg;
-        chatHist.push({role:'assistant', content:agentResult.html});
-        addBotStreamed(agentResult.html); logToAdmin(msg,'agent',1); showFollowUps('general', correctedQuery);
-      } catch(agentErr) {
-        // Agent signalled this is actually a search question (misspelling bypassed frontend routing)
-        if (agentErr.redirectToSearch) {
-          console.log('Agent redirecting to fullSearch:', agentErr.correctedQuery || msg);
-          await fullSearch(agentErr.correctedQuery || msg, chatHist, cm);
-          return;
-        }
-        console.warn('Agent failed, falling back:', agentErr.message);
-        // Fallback: Claude web search or GPT
-        if (activeModel === 'claude') {
-          try {
-            const ws = await callClaudeWebSearch(chatHist, GEN_SYS);
-            let html = fmt(ws.text);
-            if (ws.sources.length > 0) {
-              html += '<div style="margin-top:8px;font-size:.74rem;color:var(--mu)"><strong>Web sources:</strong> ';
-              html += ws.sources.slice(0, 4).map(s => `<a href="${s.url}" target="_blank" style="color:var(--t)">${s.title || s.url}</a>`).join(' · ');
-              html += '</div>';
-            }
-            chatHist.push({role:'assistant', content:ws.text});
-            addBotStreamed(html+' '+badge()+' <span class="model-badge" style="background:#E6F1FB;color:#0C447C">Web</span>');
-            logToAdmin(msg,'web_search',ws.sources.length); showFollowUps('general', msg);
-          } catch(wsErr) {
-            const reply = await callLLM({system:GEN_SYS, messages:chatHist, max_tokens:400});
-            chatHist.push({role:'assistant', content:reply});
-            addBotStreamed(fmt(reply)+' '+badge()); logToAdmin(msg,'llm_general',1); showFollowUps('general', msg);
-          }
-        } else {
-          const reply = await callLLM({system:GEN_SYS, messages:chatHist, max_tokens:400});
-          chatHist.push({role:'assistant', content:reply});
-          addBotStreamed(fmt(reply)+' '+badge()); logToAdmin(msg,'llm_general',1); showFollowUps('general', msg);
-        }
-      }
+      return;
     }
+
+    // ── STEP 2: RAG first — always try library knowledge base ──
+    let answered = false;
+    try {
+      setStatusText(tid, 'rag');
+      const ragAnswer = await callRAG(msg);
+      clearInterval(statusTimer); document.getElementById(tid)?.remove();
+      // Append "find articles" button to RAG answer
+      const ragHtml = ragAnswer + addFindResourcesBtn(msg) + ' ' + badge() + ' <span class="model-badge" style="background:#E1F5EE;color:#0F6E56">Library KB</span>';
+      chatHist.push({role:'assistant', content:ragAnswer});
+      addBotStreamed(ragHtml);
+      logToAdmin(msg,'rag',1);
+      answered = true;
+    } catch(ragErr) {
+      console.warn('RAG unavailable or no answer:', ragErr.message);
+    }
+    if(answered) return;
+
+    // ── STEP 3: Fall back to general LLM (GPT or Claude) ──
+    clearInterval(statusTimer); document.getElementById(tid)?.remove();
+    let reply = '';
+    if(activeModel === 'claude'){
+      try {
+        const ws = await callClaudeWebSearch(chatHist, GEN_SYS);
+        reply = fmt(ws.text);
+        if(ws.sources && ws.sources.length > 0){
+          reply += '<div style="margin-top:8px;font-size:.74rem;color:var(--mu)"><strong>Web sources:</strong> ';
+          reply += ws.sources.slice(0,4).map(s=>`<a href="${s.url}" target="_blank" style="color:var(--t)">${s.title||s.url}</a>`).join(' · ');
+          reply += '</div>';
+        }
+        reply += ' ' + badge() + ' <span class="model-badge" style="background:#E6F1FB;color:#0C447C">Web</span>';
+      } catch(wsErr) {
+        reply = fmt(await callLLM({system:GEN_SYS, messages:chatHist, max_tokens:500})) + ' ' + badge();
+      }
+    } else {
+      reply = fmt(await callLLM({system:GEN_SYS, messages:chatHist, max_tokens:500})) + ' ' + badge();
+    }
+    // Append "find articles" button to LLM answer
+    reply += addFindResourcesBtn(msg);
+    chatHist.push({role:'assistant', content:reply});
+    addBotStreamed(reply);
+    logToAdmin(msg,'llm_general',1);
+
   }catch(e){
-    document.getElementById(tid)?.remove();
+    clearInterval(statusTimer); document.getElementById(tid)?.remove();
     addMsg('bot',`⚠️ <strong>Error:</strong> ${e.message}`);
   }
 }
+
 
 // =================================================================
 // SEARCH TAB
@@ -1260,11 +1165,11 @@ async function doSearch(){
   const yf = document.getElementById('sYF').value.trim(), yt = document.getElementById('sYT').value.trim();
   const maxR = parseInt(botConfig.max_results||'10');
   document.getElementById('sResults').innerHTML = '';
-  document.getElementById('sStatus').textContent = '⏳ Building query…';
+  document.getElementById('sStatus').innerHTML = '<span class="status-text" style="color:var(--mu);font-size:.8rem">✏️ Correcting spelling &amp; building Boolean query… please wait</span>';
 
   const res = await executeSearch(q, {
     pr, oa, yf, yt, limit: maxR,
-    onProgress: () => { document.getElementById('sStatus').textContent = '⏳ Searching PRIMO…'; }
+    onProgress: () => { document.getElementById('sStatus').innerHTML = '<span class="status-text" style="color:var(--mu);font-size:.8rem">🔍 Searching PRIMO catalogue… please wait</span>'; }
   });
 
   document.getElementById('sStatus').textContent = '';
