@@ -1005,7 +1005,15 @@ function trimChatHist() { if(chatHist.length>20) chatHist=chatHist.slice(-20); }
 
 function logToAdmin(msg, intent, results) {
   try {
-    fetch(W+'/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg.substring(0,200),intent:intent||'unknown',results:results||0,model:activeModel,timestamp:new Date().toISOString()})}).catch(()=>{});
+    // Field names must match worker.js D1 INSERT: question, tool, result_count, model
+    fetch(W+'/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      question: (msg||'').substring(0,200),
+      tool: intent||'unknown',
+      result_count: results||0,
+      model: activeModel,
+      response_time: 0,
+      timestamp: new Date().toISOString()
+    })}).catch(()=>{});
   } catch(e) {}
 }
 
