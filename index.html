@@ -1263,6 +1263,24 @@ function addMsg(role,html){
   el.innerHTML=`<div class="av">${role==='bot'?`<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAIAAAD9b0jDAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAHUUlEQVR42lVWe2wU5xGf+Xb3dm/vaZ/xYYydsyEW1ASIIZhHEDUlQdAGiPqQkhI3UkhpKRUBopK+JRSUqg0QuSpt1KimadIkSmgCKohQHLVJLN6ixeAabGzw6+yz7+zzPfb28X3TP/bstqv949O32pn5zfzmN4PJZAKQABAAEBGKR0AEACAiRCxeAZAQAIwxJBRICIDTX6D4IyEgyQAE9H/3QABIjsMZY4wxIhCCAwAi6bofCAzDYAwJAIAQgAim/aJrTXYPRYfuAQEAyiLlU5m0ZVlEIhwuEUIQwUg8IctSaaTELBQYY0UogNNhISABACMics0RABIAM01TVfXzf/vEsUUwEJxVVnG7q6enu8/Im83NzROpSSAgIPeFIlKcCRMIZNc4ASECEEgy5PO5QsG8fOXyxUsXt2/f3tLS8s47fyaChoaG1tZWr9czmU7puv5fgFQMsPggydMZRSAEBM5FMBDqH7i/f//+5uZnGhsbFUWRZdWyCrFYLBarzmZTui9omZZpmQCAyIomi5klIJSLYQMVvRIgw1Ao3NX173R6at68+deuXSFhf3fX7oMHX77Z2WNYXGXDkbLSyjlzCEShULBti4E0XRUEALf6WGQDAIEAQNWjWB41FAw0PtKweVPTsoVtE+aKH7z0w6AYygxcVuc/+cSWrw4NDKmat6Ympmpes1BAhjOcYkQudiAQBAIRuWOVlESOvf6HMm18VUP92IRUP384m75R+2D9li/Cvn17X/rpoYKRO3nq1O3bnf3990kQMkJwSQ4EhGPjIy5uQEQAy7bLZ5UdaWkd/fuPf7Zj5ZnRqljNrQXV7SaPjk9UdPetr1zwfHywm3O+YcN6pgRudlx/aFFdPp+VJc9McViRE+gGC4rC7g2Mn3vv6M5NkdTIUNQ7UBltD4YkFKNXrymKviabjj+6ZtW2bdsmc3Tho1eOHtybM7iiKAQCQAAIAmQAYppqaJqF0pKyI4df27pwvDQUsnm+xkwN3Nnz4qHahWvg1NlRW+TWrG2ySGtv/3Tw4xcanLcWeq4efe1YMBCxbRsBi8VJjA253U1Emqpcv3n/8N5Nb3y/Ip0zUS7pNitHrKGhFI6lIk0r2gPVp/04ynqOx3O6bRmrI12OkJ/7bero25/XVpflDYMxCYrwiRDBcSyP6m/51aHnm2ROgKAmAuVT/kuzZ1/c8Pi3Xty3EyXh3PpjVfcLS6Ljpz7rPfC7HskXVWR6ZpX9yssHNS1AQrgyxFzuc+6EgsEPPjwbmGhb+/DsqayFoHDZrH8wkTdK6+fuL4w3SxKz9YF/WUv3fuDVS29ubErfTXrzprV5ZaXR8+HHbZ+HwyWccwBgBACAts0dB86ePrnhIY9lCQSGlJ2VyibuPD06Xvb6cWM0Yc2rLjz2lTPvtl8Ym2x/70QuEuF6UCaOxLBpAZ786C+SpHLBAZABAGMoBM8bhlXI66rMBSEDQtljxxfiHZ83euLtirbz4QULjMSgn3EzNhcfWycf/EUBODFGXIBPk41c1u0oBGCIKATJslwwsvVLG692Z3VNEoIASDA1bxTmzQlueypdHcvc7fElkso/LuQlRjUxZ+Wyukpt0rBRk/Far9GwYpUQFiISEAMiIvJ69YmJ1NYnNl5P190bTqseiQAAmYwZLYklkdpVjZnUJD90xOi9zxcvMubNX/bL5lIjM+b3aZ29ybv2kqe+sTU1Ma7I0kxOgTtOeXQ2Un7L9n3HTo+F/QonQEBHoMKyqhb69NLap3eXdvXK39tRqcCX1wSjMb07a8lBL/vNmcnmXT/yqoAokaunAAQAXHC/P5BIJL607pHzf11/oePKkrpZmZwd0lEPhb0ZvlhT39qtpcJc0al2osCyfQZ4SwPKucvDTuXmrZvXTaZTuu4jEq7yg6v9pmlWVVVNpcef3bnn922WzMirsvP9sX2tiXv3OoYnphZXW2E9YlmSLOds4WEAwnFaP8M9+w8YRkbTvEIIICRC5ooJEQCRJEle3VdXGy1/+Jvvf9I/O+LrjCsn2rrffR8G7fmNP0m/evxc+z87biQiYbUQLdHePDew+PFdSxfVWrY7GV0ZBRwZHSiOQ0AiUlW1+04XyqED3976xg55TkW0IEVuD1odY8HDb142hfpAuffrG+ujrL8c+35+OvDr4yerK8u4cISYGeaE8ZF+V7HcDpMkOZvNpJLJG7f6/vTqd55crnhoclBabXnmZNPJutVfywzf9Ee/kE5PZRJ3fZEqryYvX77i0bUrM5kpSZLcCYjxkYHpjQEQkYg0Tevt7bVMM5Eyrl+/oSiKZWQ6OzsAsHHF8nQmD8L2KEpZecW9vh5/IFA+q/y5Hc8mk2OyrBTtDMf7Z/YRRERkROTxeIaGhnLZTCDgdxyBKMfjI9ls1nG43++zbcfjUUiQ7Tic85qa2AOxue5wVWSPw225CLu447iNhpZlzZ1b6TiccyedTg8ODgaDvnBJ4H+WIuQOZ5IkONe8CpFgjAGgw20A+A+X+dX6obHxmAAAAABJRU5ErkJggg==" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%">`:'👤'}</div><div class="bub">${html}</div>`;
   cm.appendChild(el);cm.scrollTop=9999;
 }
+// Stream text character by character into a bubble element
+async function streamText(el, html, delayMs=8) {
+  // For HTML content, just set it directly (streaming char-by-char breaks HTML tags)
+  el.innerHTML = html;
+}
+
+// Clear chat history and reset UI
+function clearChat() {
+  const cm = document.getElementById('chatMsgs');
+  chatHist = [];
+  // Rebuild welcome message
+  const bee = `<img src="${document.querySelector('.hdr-logo img')?.src||''}" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%">`;
+  cm.innerHTML = `<div class="msg bot"><div class="av" style="background:transparent">${bee}</div><div class="bub">Hello! I'm <strong>LibBee</strong> 🐝 — the Khalifa University Library AI Assistant!<br><br>I can help with finding books &amp; articles, library services, research support, and more. Just ask!<br><br><span style="font-size:.75rem;color:var(--mu)">Switch between <strong style="color:#10A37F">ChatGPT</strong> and <strong style="color:#D97706">Claude</strong> above.</span></div></div>`;
+  document.getElementById('chips').style.display = 'flex';
+  document.getElementById('chatIn').value = '';
+  document.getElementById('chatIn').focus();
+}
+
 async function addBotStreamed(html) {
   const cm=document.getElementById('chatMsgs');
   const el=document.createElement('div');el.className='msg bot';
