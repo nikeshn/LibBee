@@ -269,6 +269,28 @@ const RAG_URL = 'https://nikeshn-kulibrary.hf.space';
 // FAQ KNOWLEDGE BASE — instant answers, zero API cost
 // =================================================================
 const FAQ_KB = [
+  {q:/ill|inter\s*library\s*loan|interlibrary loan|document delivery|borrow.*another library|request.*another library/i, a:'If the library does not have the book or article you need, use Interlibrary Loan (ILL): <a href="https://library.ku.ac.ae/ill/" target="_blank">library.ku.ac.ae/ill</a>. Articles are often supplied faster than books.'},
+  {q:/don't get.*article|cannot get.*article|can't get.*article|article.*not available|full text.*not available|no full text|unable to access.*article/i, a:'If full text is not available through the library, first try <a href="https://library.ku.ac.ae/fulltext" target="_blank">LibKey Nomad</a>. If it is still unavailable, submit an ILL request at <a href="https://library.ku.ac.ae/ill/" target="_blank">library.ku.ac.ae/ill</a>.'},
+  {q:/catalog|library catalog|discovery|holdings|publication finder|does the library have/i, a:'Use PRIMO to search the library catalog, holdings, articles, books, and journals: <a href="https://khalifa.primo.exlibrisgroup.com/discovery/search?vid=971KUOSTAR_INST:KU" target="_blank">PRIMO Search</a>. For journals specifically, try Publication Finder within PRIMO.'},
+  {q:/circulation|due date|return book|renew item|hold checked out|place a hold/i, a:'Borrowing, renewals, holds, and due dates are managed through <a href="https://khalifa.primo.exlibrisgroup.com/discovery/account?vid=971KUOSTAR_INST:KU" target="_blank">My Library Account</a>.'},
+  {q:/who.*contact.*open access|who.*contact.*orcid|who.*contact.*research impact|who.*help.*orcid|who.*help.*open access|nikesh/i, a:'For Open Access, ORCID, research impact, bibliometrics, Khazna, and AI tools for research, contact <strong>Nikesh Narayanan</strong> (Research & Access Services Librarian): <a href="mailto:nikesh.narayanan@ku.ac.ae">nikesh.narayanan@ku.ac.ae</a> | +971 2 312 3980.'},
+  {q:/who.*contact.*database|who.*contact.*e-?resource|database access problem|cannot access database|rani anand/i, a:'For database access problems and e-resource issues, contact <strong>Rani Anand</strong> (E-Resources Librarian): <a href="mailto:rani.anand@ku.ac.ae">rani.anand@ku.ac.ae</a> | +971 2 312 3935.'},
+  {q:/who.*contact.*pubmed|who.*contact.*medical|medical librarian|systematic review help|jason fetty/i, a:'For medical and health sciences research, PubMed, Embase, CINAHL, UpToDate, and systematic reviews, contact <strong>Jason Fetty</strong> (Medical Librarian): <a href="mailto:jason.fetty@ku.ac.ae">jason.fetty@ku.ac.ae</a> | +971 2 312 4722.'},
+  {q:/who.*contact.*website|who.*contact.*system|technology issue|walter brian|walter hall/i, a:'For library website, systems, and technology issues, contact <strong>Walter Brian Hall</strong> (Digital & Technology Services Librarian): <a href="mailto:walter.hall@ku.ac.ae">walter.hall@ku.ac.ae</a> | +971 2 312 3163.'},
+  {q:/who.*contact.*acquisition|who.*contact.*suggest.*book|new title request|alia al[- ]?harrasi/i, a:'For acquisitions, collection development, and suggesting new books, contact <strong>Alia Al-Harrasi</strong>: <a href="mailto:acquisitions@ku.ac.ae">acquisitions@ku.ac.ae</a> or use <a href="https://library.ku.ac.ae/requesttitle/" target="_blank">library.ku.ac.ae/requesttitle</a>.'},
+  {q:/best database.*civil|civil engineering database|database.*civil engineering/i, a:'For civil engineering, start with <strong>ASCE Library</strong>, <strong>Knovel</strong>, <strong>ScienceDirect</strong>, and <strong>ASTM Compass</strong>. Full list: <a href="https://library.ku.ac.ae/eresources" target="_blank">library.ku.ac.ae/eresources</a>'},
+  {q:/best database.*mechanical|mechanical engineering database/i, a:'For mechanical engineering, start with <strong>ASME Digital Library</strong>, <strong>Knovel</strong>, <strong>ScienceDirect</strong>, and <strong>ASTM Compass</strong>.'},
+  {q:/best database.*electrical|electrical engineering database|electronics database/i, a:'For electrical engineering and electronics, start with <strong>IEEE Xplore</strong>, <strong>INSPEC</strong>, and <strong>ScienceDirect</strong>.'},
+  {q:/best database.*computer science|database.*artificial intelligence|database.*machine learning|database.*ai/i, a:'For computer science and AI, start with <strong>ACM Digital Library</strong>, <strong>IEEE Xplore</strong>, <strong>arXiv</strong>, and <strong>ScienceDirect</strong>.'},
+  {q:/best database.*medicine|clinical evidence|evidence based medicine|review articles.*medical/i, a:'For medicine and clinical evidence, start with <strong>PubMed</strong>, <strong>Embase</strong>, <strong>Cochrane Library</strong>, <strong>UpToDate</strong>, and <strong>CINAHL</strong>.'},
+  {q:/best database.*nursing|nursing articles/i, a:'For nursing and allied health, <strong>CINAHL Ultimate</strong> is usually the best starting point, followed by PubMed and Cochrane Library.'},
+  {q:/best database.*chemistry|chemistry articles/i, a:'For chemistry, start with <strong>ACS</strong>, <strong>SciFindern</strong>, <strong>RSC Journals</strong>, and Scopus.'},
+  {q:/best database.*physics|physics articles/i, a:'For physics, start with <strong>APS Journals</strong>, <strong>AIP</strong>, <strong>IOPScience</strong>, and arXiv.'},
+  {q:/standards|engineering standard/i, a:'For engineering standards, use resources like <strong>ASTM Compass</strong> and <strong>IEEE standards</strong>. See the database list at <a href="https://library.ku.ac.ae/eresources" target="_blank">library.ku.ac.ae/eresources</a>.'},
+  {q:/dissertation|thesis database|find thesis/i, a:'For dissertations and theses, use <strong>ProQuest Dissertations & Theses Global</strong> and <strong>Khazna</strong> for KU theses: <a href="https://khazna.ku.ac.ae/" target="_blank">khazna.ku.ac.ae</a>.'},
+  {q:/impact factor|journal ranking|citescore|sjr/i, a:'For journal metrics and impact factor, use <strong>Journal Citation Reports</strong> via Web of Science, or Scopus for CiteScore/SJR. Ask Nikesh Narayanan if you need help interpreting metrics.'},
+  {q:/call number/i, a:'A call number is the location code used to find a physical book on the shelf. Search the item in PRIMO to see its call number and location.'},
+  {q:/doi/i, a:'A DOI is a permanent digital identifier for an article or document. You can use a DOI in PRIMO or database searches to locate the item quickly.'},
   {q:/library hours|opening hours|what time|when.*open|when.*close/i, a:'For current library hours, please visit: <a href="https://library.ku.ac.ae/hours" target="_blank">library.ku.ac.ae/hours</a>. Hours may vary during exam periods and holidays.'},
   {q:/reserve.*room|book.*room|study room|group room|room booking/i, a:'You can reserve a study room online at: <a href="https://library.ku.ac.ae/rooms/" target="_blank">library.ku.ac.ae/rooms</a>. Rooms can be booked in advance and are available on a first-come, first-served basis.'},
   {q:/interlibrary loan|ill |request.*book.*another/i, a:'Khalifa University offers Interlibrary Loan (ILL) for items not available in our collection. Submit your request at: <a href="https://library.ku.ac.ae/ill/" target="_blank">library.ku.ac.ae/ill</a>'},
@@ -322,6 +344,11 @@ const SUBJECT_MAP = {
   'nuclear engineering': ['ScienceDirect','Scopus','AIP','Knovel','Web of Science'],
   'materials science': ['ScienceDirect','Scopus','Nature Journals','Springer','Knovel'],
   'optics': ['Optica Publishing Group','AIP','ScienceDirect','IEEE Xplore','Scopus'],
+  'systematic review': ['Cochrane Library','PubMed','Embase','CINAHL Ultimate','UpToDate'],
+  'evidence based medicine': ['Cochrane Library','PubMed','Embase','CINAHL Ultimate','UpToDate'],
+  'standards': ['ASTM Compass','IEEE Xplore','ASME Digital Library','ASCE Library','Knovel'],
+  'dissertations': ['ProQuest Dissertations & Theses Global','Khazna','Scopus','Web of Science','ProQuest'],
+  'theses': ['ProQuest Dissertations & Theses Global','Khazna','Scopus','Web of Science','ProQuest'],
 };
 const SUBJ_RE = /i\s*(study|am studying|am in|major in|do|am doing)\s+(.+)/i;
 const SUBJ_RE2 = /(?:recommend|suggest|best)\s*(?:databases?|resources?)\s*(?:for|about)\s+(.+)/i;
@@ -540,7 +567,7 @@ async function callAgent(question) {
   html += ` ${badge()} <span class="model-badge" style="background:#f0fdf4;color:#14532d">${intentLabel}</span>`;
 
   // Return both html and the corrected query so recovery banner shows clean text
-  return { html, correctedQuery: data.corrected_query || question, meta: { question, tool: 'agent', model, intent: data.intent||null, source_mode: data.intent==='library_info' ? 'library_kb' : (data.intent==='general_recent' ? 'general_web' : (data.intent==='general' ? 'general' : 'search')) } };
+  return { html, correctedQuery: data.corrected_query || question };
 }
 
 // =================================================================
@@ -998,7 +1025,6 @@ let chatHist = [];
 let pendingLLMQuestion = null; // stores question waiting for LLM confirmation
 let serverYear = new Date().getFullYear();
 let botConfig = { max_results:'5', maintenance_mode:'false', maintenance_message:'', bot_personality:'', welcome_message:'' };
-let lastAnswerMeta = null;
 
 fetch(RAG_URL+'/year').then(r=>r.json()).then(d=>{if(d.year)serverYear=d.year;}).catch(()=>{});
 
@@ -1111,7 +1137,7 @@ async function sendChat(){
 
   // 1. FAQ match (instant, free)
   const faq = FAQ_KB.find(f => f.q.test(msg));
-  if (faq) { addBotStreamed(faq.a + ' ' + badge(), {question: msg, tool:'faq', model: activeModel, intent:'library_info', source_mode:'library_kb'}); chatHist.push({role:'assistant',content:faq.a}); logToAdmin(msg,'faq',1); showFollowUps('library'); return; }
+  if (faq) { addBotStreamed(faq.a + ' ' + badge()); chatHist.push({role:'assistant',content:faq.a}); logToAdmin(msg,'faq',1); showFollowUps('library'); return; }
 
   // 2. Database mention
   if(isDBQuery(msg)){
@@ -1149,10 +1175,10 @@ async function sendChat(){
     te2.innerHTML = `<div class="av" style="background:transparent"><img src="data:image/png;base64,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" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%"></div><div class="bub"><div class="typing"><span></span><span></span><span></span></div></div>`;
     cm.appendChild(te2); cm.scrollTop=cm.scrollHeight;
     try {
-      let reply, correctedQuery = msg, agentResult = null;
+      let reply, correctedQuery = msg;
       try {
         // Use agent — it adds RAG context and tool awareness
-        agentResult = await callAgent(msg);
+        const agentResult = await callAgent(msg);
         reply = agentResult.html;
         correctedQuery = agentResult.correctedQuery || msg;
       } catch(agentErr) {
@@ -1175,7 +1201,7 @@ async function sendChat(){
       }
       document.getElementById(tid2)?.remove();
       chatHist.push({role:'assistant', content:reply});
-      addBotStreamed(reply, (agentResult && agentResult.meta) ? agentResult.meta : {question: msg, tool:'agent', model: activeModel, intent:'general', source_mode:'general'}); logToAdmin(msg,'agent',1); showFollowUps('general', correctedQuery);
+      addBotStreamed(reply); logToAdmin(msg,'agent',1); showFollowUps('general', correctedQuery);
     } catch(e) { document.getElementById(tid2)?.remove(); addMsg('bot','⚠️ '+e.message); }
     return;
   }
@@ -1205,7 +1231,7 @@ async function sendChat(){
       // Append "find articles" button to RAG answer
       const ragHtml = ragAnswer + addFindResourcesBtn(msg) + ' ' + badge() + ' <span class="model-badge" style="background:#E1F5EE;color:#0F6E56">Library KB</span>';
       chatHist.push({role:'assistant', content:ragAnswer});
-      addBotStreamed(ragHtml, {question: msg, tool:'rag', model: activeModel, intent:'library_info', source_mode:'library_kb'});
+      addBotStreamed(ragHtml);
       logToAdmin(msg,'rag',1);
       answered = true;
     } catch(ragErr) {
@@ -1300,11 +1326,8 @@ async function doSearch(){
     // PubMed supports full Boolean syntax — pass res.bool directly
     html += `<div style="margin-top:8px"><a href="https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(res.db || res.bool)}" target="_blank" style="display:block;padding:8px 14px;background:#d1fae5;color:#065f46;border-radius:8px;text-decoration:none;font-weight:700;font-size:.8rem;text-align:center">🏥 Also search PubMed (medical literature) →</a></div>`;
   }
-  const sEl = document.getElementById('sResults');
-  sEl.innerHTML = html;
-  attachClickTracking(sEl, {question:q, tool:'search', model: activeModel, intent: res.isMedical ? 'search_medical' : 'search_academic', source_mode:'search'});
+  document.getElementById('sResults').innerHTML = html;
 }
-
 
 
 // =================================================================
@@ -1322,49 +1345,6 @@ async function streamText(el, html, delayMs=8) {
   el.innerHTML = html;
 }
 
-function feedbackWidget(meta){
-  if(!meta || !meta.question) return '';
-  const enc = encodeURIComponent(JSON.stringify(meta));
-  return `<div class="feedback-box" data-meta="${enc}" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--br);font-size:.75rem;color:var(--mu);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Was this helpful? <button class="rcard-btn" onclick="sendFeedback(this,'up')">👍</button><button class="rcard-btn" onclick="sendFeedback(this,'down')">👎</button></div>`;
-}
-async function sendFeedback(btn,val){
-  try{
-    const box = btn.closest('.feedback-box');
-    const meta = JSON.parse(decodeURIComponent(box.dataset.meta||''));
-    await fetch(W+'/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      question: meta.question||'',
-      answer_excerpt: (meta.answer_excerpt||'').substring(0,500),
-      feedback: val,
-      tool: meta.tool||'unknown',
-      model: meta.model||activeModel,
-      intent: meta.intent||null,
-      source_mode: meta.source_mode||null
-    })});
-    box.innerHTML = val==='up' ? 'Thanks for the feedback 👍' : 'Thanks — I will help improve it 👎';
-  }catch(e){ console.warn('feedback failed',e); }
-}
-function attachClickTracking(root, meta){
-  if(!root) return;
-  root.querySelectorAll('a[href]').forEach(a=>{
-    if(a.dataset.tracked==='1') return;
-    a.dataset.tracked='1';
-    a.addEventListener('click',()=>{
-      try{
-        fetch(W+'/click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-          question: meta?.question || (chatHist.slice().reverse().find(m=>m.role==='user')?.content||''),
-          target_type: a.closest('.ai-panel') ? 'ai_tool' : (a.closest('.rcard') ? 'result_link' : 'link'),
-          label: (a.textContent||'').trim().substring(0,300),
-          url: a.href,
-          tool: meta?.tool||'unknown',
-          model: meta?.model||activeModel,
-          intent: meta?.intent||null,
-          source_mode: meta?.source_mode||null
-        })}).catch(()=>{});
-      }catch(e){}
-    });
-  });
-}
-
 // Clear chat history and reset UI
 function clearChat() {
   const cm = document.getElementById('chatMsgs');
@@ -1377,20 +1357,13 @@ function clearChat() {
   document.getElementById('chatIn').focus();
 }
 
-async function addBotStreamed(html, meta=null) {
+async function addBotStreamed(html) {
   const cm=document.getElementById('chatMsgs');
   const el=document.createElement('div');el.className='msg bot';
   const bubEl=document.createElement('div');bubEl.className='bub';
   el.innerHTML='<div class="av" style="background:transparent"><img src="data:image/png;base64,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" alt="LibBee" style="width:28px;height:28px;object-fit:contain;border-radius:50%"></div>';el.appendChild(bubEl);
   cm.appendChild(el);cm.scrollTop=9999;
   await streamText(bubEl, html, 10);
-  const answerText = (bubEl.innerText||'').trim();
-  const effectiveMeta = meta || lastAnswerMeta;
-  if (effectiveMeta && answerText.length > 40 && !/AWAITING_SUBJECT/i.test(answerText)) {
-    bubEl.insertAdjacentHTML('beforeend', feedbackWidget({...effectiveMeta, answer_excerpt: answerText}));
-  }
-  attachClickTracking(bubEl, effectiveMeta);
-  lastAnswerMeta = null;
   cm.scrollTop=9999;
 }
 function fmt(t){return t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank">$1</a>').replace(/\n/g,'<br>');}
@@ -1454,7 +1427,7 @@ async function answerFromLLM(msg) {
     reply += addFindResourcesBtn(msg);
     document.getElementById(tid4)?.remove();
     chatHist.push({role:'assistant', content:reply});
-    addBotStreamed(reply, {question: msg, tool:'llm_general_confirmed', model: activeModel, intent:'general_recent', source_mode:'general_web'});
+    addBotStreamed(reply);
     logToAdmin(msg, 'llm_general_confirmed', 1);
   } catch(e) {
     document.getElementById(tid4)?.remove();
