@@ -1120,6 +1120,15 @@ async function sendChat(){
     return;
   }
 
+  // 0b. Pure greeting shortcut — deterministic LibBee intro
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening)[!?.\s]*$/i.test(msg)) {
+    const intro = `Hi! I’m <strong>LibBee</strong>, the Khalifa University Library AI Assistant.<br><br>I can help you find articles and books, search databases, access full text, request Interlibrary Loan (ILL), and answer questions about library services and staff.<br><br>Are you looking for one of these? You can also type your question directly. ${badge()}`;
+    addBotStreamed(intro);
+    chatHist.push({role:'assistant',content:'Hi! I’m LibBee, the Khalifa University Library AI Assistant.'});
+    logToAdmin(msg,'social_greeting',0);
+    return;
+  }
+
   // 1. FAQ match (instant, free)
   const faq = FAQ_KB.find(f => f.q.test(msg));
   if (faq) { addBotStreamed(faq.a + ' ' + badge()); chatHist.push({role:'assistant',content:faq.a}); logToAdmin(msg,'faq',1); showFollowUps('library'); return; }
