@@ -620,8 +620,10 @@ function genCitation(r, style='apa') {
 }
 
 function renderResultCard(r, idx, sid) {
-  const doiLink = r.doi ? `https://doi.org/${r.doi}` : (r.link || r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : null);
-  const titleLink = doiLink ? `<a href="${doiLink}" target="_blank">${r.title}</a>` : (r.link ? `<a href="${r.link}" target="_blank">${r.title}</a>` : r.title);
+  const primoLink = r.primo_url || (/PRIMO/i.test(r._source||'') ? r.link : null);
+  const pubmedLink = r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : null;
+  const fallbackLink = primoLink || r.link || (r.doi ? `https://doi.org/${r.doi}` : pubmedLink);
+  const titleLink = fallbackLink ? `<a href="${fallbackLink}" target="_blank">${r.title}</a>` : r.title;
   const srcBadge = r._source ? `<span class="rcard-tag" style="background:${{'PRIMO':'#fef3c7','PubMed':'#d1fae5','Google Scholar':'#e0e7ff'}[r._source]||'var(--bg)'};color:${{'PRIMO':'#92400e','PubMed':'#065f46','Google Scholar':'#3730a3'}[r._source]||'var(--mu)'}">${r._source}</span>` : '';
   const citeBadge = r.citations ? `<span class="rcard-tag" style="background:#fef3c7;color:#92400e">Cited: ${r.citations}</span>` : '';
   const cid = sid ? `${sid}_${idx}` : `global_${idx}`;
