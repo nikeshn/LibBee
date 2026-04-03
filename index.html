@@ -542,16 +542,6 @@ async function callAgent(question) {
   }[data.intent] || '';
   html += ` ${badge()} <span class="model-badge" style="background:#f0fdf4;color:#14532d">${intentLabel}</span>`;
 
-  if (data.intent === 'social_greeting') {
-    html += `<div class="followups" style="padding-left:0;margin-top:10px">
-      <button class="fq" onclick="chip('Find articles and books')">📚 Find articles</button>
-      <button class="fq" onclick="chip('How do I get full text for an article?')">📄 Get full text</button>
-      <button class="fq" onclick="chip('How do I submit an ILL request?')">🔁 Interlibrary Loan</button>
-      <button class="fq" onclick="chip('Who can help me in the library?')">👩‍💼 Contact a librarian</button>
-      <button class="fq" onclick="chip('What are the library hours?')">🕒 Library hours</button>
-    </div>`;
-  }
-
   // Return both html and the corrected query so recovery banner shows clean text
   return { html, correctedQuery: data.corrected_query || question };
 }
