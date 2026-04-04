@@ -136,8 +136,7 @@ header{background:var(--ku-blue);color:#fff;padding:10px 16px;display:flex;align
 .abar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
 .abtn{width:26px;height:26px;border-radius:7px;border:1.5px solid var(--br);background:#fff;font-size:.72rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
 .abtn:hover,.abtn.active{background:var(--ku-blue);color:#fff;border-color:var(--ku-blue)}
-.dg{margin-bottom:14px}.dg h2{font-size:.95rem;font-weight:800;color:var(--ku-blue);margin-bottom:7px;padding-bottom:3px;border-bottom:2px solid var(--bg)}
-.di{background:#fff;border-radius:9px;padding:9px 12px;margin-bottom:5px;border:1px solid var(--br)}
+.dg{margin-bottom:14px;border:1px solid var(--br);border-radius:12px;background:#fff;overflow:hidden}.dg h2{font-size:.95rem;font-weight:800;color:var(--ku-blue);margin:0}.dg summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;background:#fff}.dg summary::-webkit-details-marker{display:none}.dg summary:hover{background:#f8fafc}.db-toggle{font-size:.72rem;font-weight:700;color:var(--mu);white-space:nowrap}.db-group-items{padding:0 10px 10px}.di{background:#fff;border-radius:9px;padding:9px 12px;margin-bottom:5px;border:1px solid var(--br)}
 .di h4{font-size:.82rem;font-weight:700}.di p{font-size:.75rem;color:var(--mu);margin-top:2px}.di a{font-size:.72rem;color:var(--t);display:inline-block;margin-top:3px}
 @media(max-width:480px){.hdr-text h1{font-size:.9rem}.guides-grid{grid-template-columns:1fr}.msg{max-width:95%}.model-opt{padding:3px 7px;font-size:.62rem}}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#c4b5fd;border-radius:10px}
@@ -1729,14 +1728,62 @@ const dbSubjects=[
     {name:'SciVal',desc:'Research performance and benchmarking analytics.',url:'https://khalifa.idm.oclc.org/login?url=https://scival.com/'}
   ]}
 ];
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function dbItemsHtml(items){
+  return items.map(d=>`<div class="di"><h4>${escapeHtml(d.name)}</h4><p>${escapeHtml(d.desc)}</p><a href="${d.url}" target="_blank">Access →</a></div>`).join('');
+}
+function buildAtoZItems(){
+  const seen=new Set();
+  const flat=[];
+  dbSubjects.forEach(s=>s.items.forEach(d=>{
+    const key=(d.name+'|'+d.url).toLowerCase();
+    if(!seen.has(key)){
+      seen.add(key);
+      flat.append if False else None
+    }
+  }));
+  return flat;
+}
+function buildAtoZItems(){
+  const seen=new Set();
+  const flat=[];
+  dbSubjects.forEach(s=>s.items.forEach(d=>{
+    const key=(d.name+'|'+d.url).toLowerCase();
+    if(!seen.has(key)){
+      seen.add(key);
+      flat.push(d);
+    }
+  }));
+  flat.sort((a,b)=>a.name.localeCompare(b.name));
+  return flat;
+}
 function buildDB(f){
   document.getElementById('abar').innerHTML=`<button class="abtn ${!f?'active':''}" onclick="buildDB('')">All</button>`+
     dbSubjects.map(s=>`<button class="abtn ${f===s.key?'active':''}" onclick="buildDB('${s.key}')" title="${s.label}">${s.label.charAt(0)}</button>`).join('');
   const filtered=f?dbSubjects.filter(s=>s.key===f):dbSubjects;
-  document.getElementById('dbList').innerHTML=filtered.map(s=>
-    `<div class="dg"><h2>${s.label}</h2>${s.items.map(d=>`<div class="di"><h4>${d.name}</h4><p>${d.desc}</p><a href="${d.url}" target="_blank">Access →</a></div>`).join('')}</div>`
-  ).join('');
+  const subjectBlocks = filtered.map((s,idx)=>`
+    <details class="dg" ${f ? 'open' : ''}>
+      <summary><h2>${escapeHtml(s.label)}</h2><span class="db-toggle">${f ? 'Hide' : 'Show'}</span></summary>
+      <div class="db-group-items">${dbItemsHtml(s.items)}</div>
+    </details>`).join('');
+  const atoz = buildAtoZItems();
+  const atozBlock = `
+    <details class="dg db-atoz">
+      <summary><h2>All Databases A–Z</h2><span class="db-toggle">Show</span></summary>
+      <div class="db-group-items">${dbItemsHtml(atoz)}</div>
+    </details>`;
+  document.getElementById('dbList').innerHTML = subjectBlocks + atozBlock;
 }
+
+document.addEventListener('toggle', (e)=>{
+  const details = e.target;
+  if(details && details.classList && details.classList.contains('dg')){
+    const t = details.querySelector('.db-toggle');
+    if(t) t.textContent = details.open ? 'Hide' : 'Show';
+  }
+}, true);
 buildDB('');
 </script>
 </body>
