@@ -508,87 +508,47 @@ async function callAgent(question) {
   if (!r || !r.ok) throw new Error('Agent service unavailable');
   const data = await r.json();
 
-  // Defensive fix: if the backend returned a "no info" reply for a social question,
-  // substitute a safe LibBee identity answer so the user never sees "I don't have information".
-  const NO_INFO_PATTERNS = [
-    "i don't have", "i do not have", "no specific information",
-    "not available in", "unable to find", "cannot find", "no information about"
-  ];
-  if (data.intent === 'social_greeting' || /^(hi|hello|hey|how are you|who are you|what are you|what can you do|are you a bot)/i.test(question.trim())) {
-    const answerLower = (data.answer || '').toLowerCase().replace(/\u2019/g, "'");
-    const looksLikeNoInfo = !data.answer || NO_INFO_PATTERNS.some(p => answerLower.includes(p));
-    if (looksLikeNoInfo) {
-      const safeAnswers = {
-        'who are you': "I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant. I can help you find articles and books, search databases, access full text, request Interlibrary Loan (ILL), and answer questions about library services and staff.",
-        'what are you': "I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant. I can help you find articles and books, search databases, access full text, request Interlibrary Loan (ILL), and answer questions about library services and staff.",
-        'how are you': "I'm doing well, thank you! I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant. How can I help you with library resources today?",
-        'what can you do': "I can help you search for articles and books, suggest databases, find full text, answer questions about library services, and connect you with the right Khalifa University Library staff member.",
-        'are you a bot': "Yes — I'm <strong>LibBee</strong>, an AI assistant for Khalifa University Library. I'm here to help with library research, databases, articles, books, full text, and library services.",
-      };
-      const q = question.trim().toLowerCase().replace(/[?!.]/g, '');
-      data.answer = safeAnswers[q] || "I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant. I'm here to help with library questions, books, articles, databases, full text access, and library services. What can I help you with?";
-      data.intent = 'social_greeting';
+  // Handle redirect-to-search signal from backend
+  if (data.intent === 'search_academic' || data.intent === 'search_medical') {
+    const redirectErr = new Error('REDIRECT_TO_SEARCH');
+    redirectErr.redirectToSearch = true;
+    redirectErr.correctedQuery = data.corrected_query || question;
+    throw redirectErr;
+  }
+
+  // Defensive: if answer is missing entirely, throw so caller can fallback
+  if (!data.answer && !data.error) throw new Error('Empty response from agent');
+  if (!data.answer && data.error) throw new Error(data.error);
+
+  // ── Safety net: if backend returned a "no info" phrase for social intent ──
+  // This should never happen with the new LLM-first classifier, but kept as a guard.
+  const NO_INFO = ["i don't have","i do not have","no specific information","not available in","unable to find"];
+  if (data.intent === 'social_greeting') {
+    const aLower = (data.answer || '').toLowerCase().replace(/’/g,"'");
+    if (!data.answer || NO_INFO.some(p => aLower.includes(p))) {
+      data.answer = "I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant! " +
+        "I'm here to help with finding articles and books, searching databases, " +
+        "accessing full text, ILL requests, and all library services. What can I help you with?";
     }
   }
 
-  if (!data.answer) throw new Error(data.error || 'No answer from agent');
+  // Build HTML from the answer text
+  const html = fmt(data.answer);
 
-  // If agent classified as search — signal caller to redirect to fullSearch
-  // This handles misspelled research questions that slipped past frontend routing
-  if (data.intent === 'search_academic' || data.intent === 'search_medical') {
-    const err = new Error('REDIRECT_TO_SEARCH');
-    err.redirectToSearch = true;
-    err.correctedQuery = data.corrected_query || question;
-    throw err;
-  }
-
-  let html = fmt(data.answer);
-
-  // Show search results if agent found any
-  if (data.search_results && data.search_results.length > 0) {
-    const agentSid = 'AG' + Date.now();
-    window._primoResults[agentSid] = data.search_results;
-    html += `<div style="margin-top:10px;font-size:.82rem;font-weight:700;color:var(--ku-blue)">📄 Relevant results found:</div>`;
-    html += data.search_results.slice(0, 3).map((r, i) => renderResultCard(r, i, agentSid)).join('');
-  }
-
-  // Show tool badges
-  if (data.tools_used && data.tools_used.length > 0) {
-    const toolLabels = {
-      'get_library_info': '📚 KU Knowledge Base',
-      'PRIMO': '🔍 PRIMO',
-      'PubMed': '🏥 PubMed',
-      'Semantic Scholar': '🎓 Semantic Scholar',
-    };
-    const badges = data.tools_used
-      .map(t => `<span style="font-size:.66rem;padding:2px 7px;border-radius:8px;background:#e0e7ff;color:#3730a3;font-weight:600">${toolLabels[t]||t}</span>`)
-      .join(' ');
-    html += `<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">${badges}</div>`;
-  }
-
-  // Model + intent badge
-  const intentLabel = {
-    library_info: '🏛️ Library',
-    search_academic: '🔍 Academic',
-    search_medical: '🏥 Medical',
-    general: '💡 General',
-    general_recent: '🌐 Live Web',
-    social_greeting: '👋 Greeting'
-  }[data.intent] || '';
-  html += ` ${badge()} <span class="model-badge" style="background:#f0fdf4;color:#14532d">${intentLabel}</span>`;
-
-  // Return both html and the corrected query so recovery banner shows clean text
-  if (data.intent === 'social_greeting') {
-    html += `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
-      <button onclick="askForSubject()" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">📚 Find articles</button>
-      <button onclick="chip('How do I get full text for an article?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">📄 Get full text</button>
-      <button onclick="chip('How do I request Interlibrary Loan?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">📬 Interlibrary Loan</button>
-      <button onclick="chip('Who can I contact at the library?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">💬 Contact a librarian</button>
-      <button onclick="chip('What are the library hours?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">⏰ Library hours</button>
-    </div>`;
-  }
-  return { html, correctedQuery: data.corrected_query || question };
+  // Return a structured object — the caller builds the full display HTML
+  return {
+    html,
+    intent:          data.intent || 'general',
+    toolsUsed:       data.tools_used || [],
+    searchResults:   data.search_results || [],
+    sources:         data.sources || [],
+    correctedQuery:  data.corrected_query || question,
+    naturalQuery:    data.natural_query || question,
+    databaseQuery:   data.database_query || question,
+    redirectToSearch: false,
+  };
 }
+
 
 // =================================================================
 // PRIMO API SEARCH
@@ -1043,6 +1003,35 @@ function isTopicSearch(msg) {
 }
 
 // =================================================================
+// SOCIAL / CASUAL DETECTOR
+// Returns true for messages that are conversational, emotional, or
+// vague help requests with NO library/research/academic content.
+// These should go straight to callAgent (super-classifier) and NEVER
+// hit the RAG pipeline — RAG has no content for them and shows the
+// wrong "I don't have information" confirmation box.
+//
+// Examples that return TRUE:
+//   "can you help me"  "I am fed up"  "I don't know how to do this"
+//   "I'm struggling"   "please help"  "you're great"  "I give up"
+//   "I need assistance" "I'm confused" "what should I do"
+//
+// Examples that return FALSE (library/research content present):
+//   "can you help me find articles on AI"
+//   "I don't know how to search PubMed"
+//   "I'm struggling to access the database"
+// =================================================================
+const CASUAL_RE = /^(can you help|help me|please help|i need help|i need some help|i need assistance|i am lost|i'm lost|i am confused|i'm confused|i don't know what to do|i dont know what to do|i am fed up|i'm fed up|i am frustrated|i'm frustrated|i give up|i am struggling|i'm struggling|i am stuck|i'm stuck|what should i do|how do i start|where do i start|i don't know how|i dont know how|i need guidance|i need support|can you assist|please assist|assist me|help|please|i need you|are you there|anybody there|hello there)/i;
+
+// Library/research signal — if present, it's NOT purely casual
+const LIBRARY_SIGNAL_RE = /(article|paper|book|journal|database|pubmed|primo|search|research|find|library|access|full.?text|ill|interlibrary|doi|ebook|citation|reference|scopus|ieee|elsevier|springer|embase|cinahl|cochrane|orcid|refworks|thesis|dissertation|topic|subject)/i;
+
+function isSocialOrCasual(msg) {
+  const m = (msg || '').trim();
+  // Must match a casual pattern AND contain no library/research signal
+  return CASUAL_RE.test(m) && !LIBRARY_SIGNAL_RE.test(m);
+}
+
+// =================================================================
 // GLOBAL STATE — restored (was accidentally deleted in refactor)
 // =================================================================
 let chatHist = [];
@@ -1298,59 +1287,131 @@ async function sendChat(){
   let tid3 = null; // LLM fallback bubble id — defined upfront so catch can reference it
 
   try{
-    // ── STEP 1: Explicit search? Only if user clearly wants articles/books ──
+    // ══════════════════════════════════════════════════════════════════
+    // ROUTING — clean two-step architecture:
+    //
+    // Step 1: Explicit topic search → fullSearch() directly (fast, no LLM)
+    //         Only fires when user clearly wants articles/books ON a topic.
+    //
+    // Step 2: Everything else → callAgent()
+    //         The backend LLM classifier handles ALL classification:
+    //         social, library_info, search, general, etc.
+    //         This is intentional — the LLM understands context, emotion,
+    //         broken English, and ambiguous phrasing far better than regex.
+    //
+    // The "I don't have specific information" confirmation box is REMOVED.
+    // The backend now always returns a meaningful answer.
+    // ══════════════════════════════════════════════════════════════════
+
+    // ── STEP 1: Clear explicit topic search ──
+    // Only route here when user unmistakably wants to find articles/books
+    // on a specific topic — not for casual, social, or ambiguous messages.
     if(isTopicSearch(msg)){
       clearInterval(statusTimer); document.getElementById(tid)?.remove();
       await fullSearch(msg, chatHist, cm);
       return;
     }
 
-    // ── STEP 2: RAG first — always try library knowledge base ──
+    // ── STEP 2: Everything else → /agent (LLM-first classifier backend) ──
+    // The backend classifies: social | library_info | search | general
+    // and returns an appropriate answer for every message type.
+    setStatusText(tid, 'thinking');
     let answered = false;
     try {
-      setStatusText(tid, 'rag');
-      const ragAnswer = await callRAG(msg);
+      const agentResult = await callAgent(msg);
       clearInterval(statusTimer); document.getElementById(tid)?.remove();
-      // Append "find articles" button to RAG answer
-      const ragHtml = ragAnswer + addFindResourcesBtn(msg) + ' ' + badge() + ' <span class="model-badge" style="background:#E1F5EE;color:#0F6E56">Library KB</span>';
-      chatHist.push({role:'assistant', content:ragAnswer});
-      addBotStreamed(ragHtml);
-      window.lastIntent='rag'; logToAdmin(msg,'rag',1);
+
+      if (agentResult.redirectToSearch) {
+        await fullSearch(agentResult.correctedQuery || msg, chatHist, cm);
+        return;
+      }
+
+      const intentLabel = {
+        library_info:    '🏛️ Library',
+        search_academic: '🔍 Academic',
+        search_medical:  '🏥 Medical',
+        general:         '💡 General',
+        general_recent:  '🌐 Live Web',
+        social_greeting: '👋 Greeting',
+      }[agentResult.intent] || '';
+
+      let html = agentResult.html;
+
+      // Append search results if agent found any
+      if (agentResult.searchResults && agentResult.searchResults.length > 0) {
+        const agSid = 'AG' + Date.now();
+        window._primoResults[agSid] = agentResult.searchResults;
+        html += '<div style="margin-top:10px;font-size:.82rem;font-weight:700;color:var(--ku-blue)">📄 Relevant results found:</div>';
+        html += agentResult.searchResults.slice(0, 3).map((r, i) => renderResultCard(r, i, agSid)).join('');
+      }
+
+      // Tool badges
+      if (agentResult.toolsUsed && agentResult.toolsUsed.length > 0) {
+        const toolLabels = {
+          'get_library_info':  '📚 KU Knowledge Base',
+          'PRIMO':             '🔍 PRIMO',
+          'PubMed':            '🏥 PubMed',
+          'Semantic Scholar':  '🎓 Semantic Scholar',
+          'libbee_casual':     '🐝 LibBee',
+          'general':           '💡 General AI',
+          'general_web':       '🌐 Web Search',
+        };
+        const badges = agentResult.toolsUsed
+          .map(t => '<span style="font-size:.66rem;padding:2px 7px;border-radius:8px;background:#e0e7ff;color:#3730a3;font-weight:600">' + (toolLabels[t] || t) + '</span>')
+          .join(' ');
+        html += '<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">' + badges + '</div>';
+      }
+
+      // Model + intent badge
+      html += ' ' + badge();
+      if (intentLabel) html += ' <span class="model-badge" style="background:#f0fdf4;color:#14532d">' + intentLabel + '</span>';
+
+      // For social_greeting intent, always append the quick-action buttons
+      if (agentResult.intent === 'social_greeting') {
+        html += '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">' +
+          '<button onclick="askForSubject()" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">📚 Find articles</button>' +
+          '<button onclick="chip('How do I get full text for an article?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">📄 Get full text</button>' +
+          '<button onclick="chip('How do I request Interlibrary Loan?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">📬 ILL Request</button>' +
+          '<button onclick="chip('Who can I contact at the library?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">💬 Contact librarian</button>' +
+          '<button onclick="chip('What are the library hours?')" style="padding:6px 12px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.74rem;font-weight:600;cursor:pointer">⏰ Library hours</button>' +
+          '</div>';
+      }
+
+      // For library/search answers, offer "find articles" follow-up
+      if (['library_info','search_academic','search_medical'].includes(agentResult.intent)) {
+        html += addFindResourcesBtn(agentResult.correctedQuery || msg);
+      }
+
+      chatHist.push({role:'assistant', content: agentResult.html || html});
+      addBotStreamed(html);
+      window.lastIntent = agentResult.intent || 'agent';
+      logToAdmin(msg, agentResult.intent || 'agent', agentResult.searchResults?.length || 0);
+      if (agentResult.intent === 'social_greeting') showFollowUps('general', msg);
+      else if (['search_academic','search_medical'].includes(agentResult.intent)) showFollowUps('search', agentResult.correctedQuery || msg);
+      else showFollowUps('library', agentResult.correctedQuery || msg);
       answered = true;
-    } catch(ragErr) {
-      console.warn('RAG unavailable or no answer:', ragErr.message);
+    } catch(agentErr) {
+      clearInterval(statusTimer); document.getElementById(tid)?.remove();
+      if (agentErr.redirectToSearch) {
+        await fullSearch(agentErr.correctedQuery || msg, chatHist, cm);
+        return;
+      }
+      // Agent failed entirely — last resort fallback
+      console.error('Agent failed:', agentErr.message);
+      const fallback = "I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant. " +
+        "I'm having a moment of difficulty — please try your question again, or " +
+        "<a href='https://library.ku.ac.ae/AskUs' target='_blank'>Ask a Librarian</a> for immediate help. " +
+        badge();
+      addMsg('bot', fallback);
+      chatHist.push({role:'assistant', content: fallback});
+      window.lastIntent = 'error';
+      logToAdmin(msg, 'error', 0);
+      answered = true;
     }
-    if(answered) return;
+    if (answered) return;
 
-    // ── STEP 3: Not in library KB — ask user before using general LLM ──
-    clearInterval(statusTimer); document.getElementById(tid)?.remove();
-    pendingLLMQuestion = msg; // store for buttons to use
-    const btnId = 'kb-'+Date.now();
-    addMsg('bot', `I don't have specific information about this in the Khalifa University Library knowledge base. ${badge()}<br><br>
-      <div id="${btnId}" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        <button id="${btnId}-llm"
-          style="padding:8px 16px;background:var(--ku-blue);color:#fff;border:none;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer">
-          🤖 Yes, answer from general AI knowledge
-        </button>
-        <button id="${btnId}-search"
-          style="padding:8px 16px;background:#f0f4ff;color:var(--ku-blue);border:1.5px solid var(--ku-blue);border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer">
-          📚 Find articles &amp; books on this
-        </button>
-      </div>`);
-    // Attach event listeners after DOM insert (avoids string escaping issues)
-    setTimeout(() => {
-      document.getElementById(btnId+'-llm')?.addEventListener('click', () => {
-        document.getElementById(btnId).innerHTML = '<em style="font-size:.78rem;color:var(--mu)">Generating answer from general AI…</em>';
-        answerFromLLM(pendingLLMQuestion);
-      });
-      document.getElementById(btnId+'-search')?.addEventListener('click', () => {
-        document.getElementById(btnId).innerHTML = '<em style="font-size:.78rem;color:var(--mu)">Searching articles and books…</em>';
-        answerFindArticles(pendingLLMQuestion);
-      });
-    }, 100);
-    chatHist.push({role:'assistant', content:'Not in library KB. Asked user: use general AI or find articles?'});
+    // Should never reach here, but safety net
     window.lastIntent='not_in_kb'; logToAdmin(msg,'not_in_kb',0);
-
   }catch(e){
     clearInterval(statusTimer); document.getElementById(tid)?.remove(); document.getElementById(tid3)?.remove();
     addMsg('bot',`⚠️ <strong>Error:</strong> ${e.message}`);
