@@ -924,31 +924,50 @@ async function fullSearch(msg, chatHist, cm) {
   cm.appendChild(loadEl); cm.scrollTop = cm.scrollHeight;
 
   let progressData = {};
-  const wantBooksEarly = /\b(books?|ebooks?|textbooks?)\b/i.test(msg); // detect early for progress label
+  const wantBooksEarly = /\b(books?|ebooks?|textbooks?)\b/i.test(msg);
   const res = await executeSearch(msg, {
     history: chatHist,
     onProgress: (d) => {
       progressData = d;
       const label = wantBooksEarly ? `📗 Book Search: ${d.natural||d.explanation}` : `🔍 ${d.natural||d.explanation}`;
-      loadEl.innerHTML = `<div class="av">🔍</div><div class="scard"><div class="scard-title">${label} ${badge()}</div>${buildSearchCard(d.bool,d.explanation,d.corrected,msg,d.yf,d.yt,d.pr,d.oa,false)}<div style="margin-top:10px;font-size:.8rem;color:var(--mu)"><div class="typing"><span></span><span></span><span></span></div> Searching PRIMO…</div><div id="primo-results-area"></div></div>`;
+      // Build AI tools immediately — don't wait for PRIMO
+      const pk = d.bool.replace(/[()"]/g,'').replace(/\b(AND|OR)\b/g,' ').replace(/\s+/g,' ').trim();
+      const aq = d.natural || d.corrected || msg;
+      const isMed = MEDICAL_RE.test(msg);
+      const pubmedEarly = isMed ? `<div style="margin-top:8px"><button class="fq" disabled style="padding:6px 14px;background:#d1fae5;color:#065f46;border-radius:8px;font-weight:600;font-size:.8rem;border:1px solid #6ee7b7;cursor:pointer;width:100%;opacity:.7">🏥 Also search PubMed (medical literature)</button></div>` : '';
+      loadEl.innerHTML = `<div class="av">🔍</div><div class="scard">
+        <div class="scard-title">${label} ${badge()}</div>
+        ${buildSearchCard(d.bool,d.explanation,d.corrected,msg,d.yf,d.yt,d.pr,d.oa,false)}
+        ${buildAIToolsPanel(aq, pk)}
+        ${pubmedEarly}
+        <div style="margin-top:10px;font-size:.8rem;color:var(--mu);display:flex;align-items:center;gap:6px">
+          <div class="typing"><span></span><span></span><span></span></div>
+          <span>Searching PRIMO catalogue…</span>
+        </div>
+        <div id="primo-results-area"></div>
+      </div>`;
       cm.scrollTop = cm.scrollHeight;
     }
   });
 
   const label = res.wantBooks ? `📗 Book Search: ${res.natural||res.explanation}` : `🔍 ${res.natural||res.explanation}`;
-  loadEl.innerHTML = `<div class="av">🔍</div><div class="scard"><div class="scard-title">${label} ${badge()}</div>${buildSearchCard(res.bool,res.explanation,res.corrected,msg,res.yf,res.yt,res.pr,res.oa,false)}<div id="primo-results-area"></div></div>`;
-
-  const area = loadEl.querySelector('#primo-results-area');
   const primoKeyword = res.bool.replace(/[()"]/g,'').replace(/\b(AND|OR)\b/g,' ').replace(/\s+/g,' ').trim();
   const aiQuery = res.natural || res.corrected || msg;
   const pubmedBtn = res.isMedical ? `<div style="margin-top:8px"><button class="fq" onclick="doSearchNew('${res.sid}','pubmed')" style="padding:6px 14px;background:#d1fae5;color:#065f46;border-radius:8px;font-weight:600;font-size:.8rem;border:1px solid #6ee7b7;cursor:pointer;width:100%">🏥 Also search PubMed (medical literature)</button></div>` : '';
 
-  let html = '';
-  // ── 1. AI tools + PubMed first (small, visible) ──
-  html += buildAIToolsPanel(aiQuery, primoKeyword);
-  html += pubmedBtn;
+  // Rebuild with final data — update title and search card, keep AI tools
+  loadEl.innerHTML = `<div class="av">🔍</div><div class="scard">
+    <div class="scard-title">${label} ${badge()}</div>
+    ${buildSearchCard(res.bool,res.explanation,res.corrected,msg,res.yf,res.yt,res.pr,res.oa,false)}
+    ${buildAIToolsPanel(aiQuery, primoKeyword)}
+    ${pubmedBtn}
+    <div id="primo-results-area"></div>
+  </div>`;
 
-  // ── 2. PRIMO results after ──
+  const area = loadEl.querySelector('#primo-results-area');
+  let html = '';
+
+  // ── PRIMO results ──
   if (res.results.length > 0) {
     html += `<div style="font-size:.82rem;font-weight:700;color:var(--ku-blue);margin:12px 0 6px">📄 PRIMO: Top ${res.results.length} of ${res.total.toLocaleString()} results</div>`;
     html += res.results.map((r,i) => renderResultCard(r, i, res.sid)).join('');
