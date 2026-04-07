@@ -903,7 +903,9 @@ async function executeSearch(query, opts={}) {
 
   let results = [], total = 0, searchError = null;
   try {
-    const data = await searchPRIMO(cleanQ, {pr:finalPR, oa:finalOA, yf:finalYF, yt:finalYT, limit:maxR});
+    // Send the full Boolean string — worker and app.py convert to PRIMO multi-query format
+    // preserving all concepts (AI OR ML) AND (cancer) AND (deep learning)
+    const data = await searchPRIMO(bool, {pr:finalPR, oa:finalOA, yf:finalYF, yt:finalYT, limit:maxR});
     results = data.results || [];
     total = data.total || 0;
     window._primoResults[sid] = results;
