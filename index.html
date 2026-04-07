@@ -442,16 +442,19 @@ async function fetchWithRetry(url, options, retries=4, delayMs=8000) {
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       const r = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeout);
-      // Success — remove warm-up message if shown
+      // Success — remove warm-up messages if shown
       document.getElementById('warm-msg')?.remove();
+      const sStatus = document.getElementById('sStatus');
+      if (sStatus && sStatus.dataset.warming) sStatus.innerHTML = '';
       return r;
     } catch (e) {
       if (attempt === retries) {
-        // All retries exhausted — remove warm-up message and throw
         document.getElementById('warm-msg')?.remove();
         throw e;
       }
-      // Show / update warming message
+      const waitSecs = Math.round((delayMs * (attempt + 1)) / 1000);
+      const warmMsg = `🐝 AI service is waking up… please wait (attempt ${attempt+1}/${retries}) — this can take up to 60 seconds on first use.`;
+      // Show in chat tab
       const cm = document.getElementById('chatMsgs');
       let warm = document.getElementById('warm-msg');
       if (!warm) {
@@ -460,11 +463,13 @@ async function fetchWithRetry(url, options, retries=4, delayMs=8000) {
         warm.className = 'msg bot';
         cm?.appendChild(warm); cm && (cm.scrollTop = 9999);
       }
-      const waitSecs = Math.round((delayMs * (attempt + 1)) / 1000);
       warm.innerHTML = `<div class="av">⏳</div><div class="bub" style="font-size:.82rem;color:var(--mu)">
         🐝 LibBee is waking up the AI service… please wait (attempt ${attempt+1}/${retries})<br>
         <span style="font-size:.74rem;opacity:.7">HF Space cold start can take up to 60 seconds on first use.</span>
       </div>`;
+      // Show in AI Search tab too
+      const sStatus = document.getElementById('sStatus');
+      if (sStatus) { sStatus.dataset.warming = '1'; sStatus.innerHTML = `<span style="color:#9d174d;font-size:.8rem;font-weight:600">⏳ ${warmMsg}</span>`; }
       await new Promise(res => setTimeout(res, delayMs));
     }
   }
@@ -933,6 +938,12 @@ async function fullSearch(msg, chatHist, cm) {
   if (res.results.length > 0) {
     let html = `<div style="font-size:.82rem;font-weight:700;color:var(--ku-blue);margin:10px 0 6px">📄 PRIMO: Top ${res.results.length} of ${res.total.toLocaleString()} results</div>`;
     html += res.results.map((r,i) => renderResultCard(r, i, res.sid)).join('');
+    // EBSCO "more results" banner after PRIMO results
+    const ebscoMoreUrl = `https://khalifa.idm.oclc.org/login?url=http://search.ebscohost.com/login.aspx?authtype=ip,uid&profile=eds&direct=true&bquery=${encodeURIComponent(res.natural||msg)}`;
+    html += `<div style="margin-top:10px;padding:9px 12px;background:#fce7f3;border-radius:10px;border:1px solid #f9a8d4;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <span style="font-size:.76rem;color:#9d174d;font-weight:600">📰 Want more results? Search EBSCO databases</span>
+      <a href="${ebscoMoreUrl}" target="_blank" style="padding:5px 12px;background:#9d174d;color:#fff;border-radius:8px;text-decoration:none;font-size:.74rem;font-weight:700;white-space:nowrap;flex-shrink:0">Search in EBSCO →</a>
+    </div>`;
     area.innerHTML = html;
   } else {
     area.innerHTML = `<div style="font-size:.82rem;color:var(--mu);margin-top:8px">${res.error ? 'PRIMO error: '+res.error : 'No results found. Try refining your search.'}</div>`;
@@ -1540,6 +1551,12 @@ async function doSearch(){
   if (res.results.length) {
     html += `<div style="font-size:.84rem;font-weight:700;color:var(--ku-blue);margin:12px 0 6px">📄 ${res.total.toLocaleString()} results — showing top ${res.results.length}:</div>`;
     html += res.results.map((r,i) => renderResultCard(r, i, res.sid)).join('');
+    // EBSCO "more results" link after PRIMO results
+    const ebscoMoreUrl = `https://khalifa.idm.oclc.org/login?url=http://search.ebscohost.com/login.aspx?authtype=ip,uid&profile=eds&direct=true&bquery=${encodeURIComponent(res.natural||correctedQuery)}`;
+    html += `<div style="margin-top:10px;padding:10px 14px;background:#fce7f3;border-radius:10px;border:1px solid #f9a8d4;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <span style="font-size:.78rem;color:#9d174d;font-weight:600">📰 Want more results? Search the same query across all EBSCO databases</span>
+      <a href="${ebscoMoreUrl}" target="_blank" style="padding:6px 14px;background:#9d174d;color:#fff;border-radius:8px;text-decoration:none;font-size:.76rem;font-weight:700;white-space:nowrap;flex-shrink:0">Search in EBSCO →</a>
+    </div>`;
   } else {
     html += `<div style="font-size:.78rem;color:var(--mu);margin-top:8px">${res.error ? 'PRIMO API: '+res.error : 'No results found.'}</div>`;
   }
