@@ -276,9 +276,9 @@ const FAQ_KB = [
   {q:/^\s*abdulla\s*$/i, a:'Did you mean <strong>Dr. Abdulla Al Hefeiti</strong>?<br><br><strong>Dr. Abdulla Al Hefeiti</strong> is the <strong>Library Director / Assistant Provost, Libraries</strong>. He can help with strategic and institutional matters, library leadership, and partnerships. Email: abdulla.alhefeiti@ku.ac.ae | Phone: +971 2 312 3331'},
   {q:/^\s*hefeiti\s*$/i, a:'Did you mean <strong>Dr. Abdulla Al Hefeiti</strong>?<br><br><strong>Dr. Abdulla Al Hefeiti</strong> is the <strong>Library Director / Assistant Provost, Libraries</strong>. He can help with strategic and institutional matters, library leadership, and partnerships. Email: abdulla.alhefeiti@ku.ac.ae | Phone: +971 2 312 3331'},
   {q:/\b(system librarian|systems librarian|who is system librarian|who is systems librarian)\b/i, a:'The Systems Librarian is <strong>Walter Brian Hall</strong>. He can help with library systems, website, and technology-related issues.'},
-  {q:/\b(who handles orcid|who can help.*orcid|contact.*orcid|orcid help|who handles open access|who can help.*open access|contact.*open access|apc help|open access help)\b/i, a:'For ORCID, Open Access, and research impact support, contact <strong>Nikesh Narayanan</strong>.'},
-  {q:/\b(who handles database access|database access problem|e-?resources? issue|remote access problem)\b/i, a:'For database and e-resources access issues, contact <strong>Rani Anand</strong>.'},
-  {q:/\b(medical librarian|who can help.*pubmed|contact.*pubmed|pubmed help)\b/i, a:'For medical databases, PubMed, Embase, CINAHL, and systematic reviews, contact <strong>Jason Fetty</strong>.'},
+  {q:/\b(who handles orcid|who can help.*orcid|contact.*orcid|who handles open access|who can help.*open access|contact.*open access|who handles apc|contact.*apc)\b/i, a:'For ORCID, Open Access, and research impact support, contact <strong>Nikesh Narayanan</strong>.'},
+  {q:/\b(who handles database access|who should i contact.*database access|database access problem|e-?resources? issue|remote access problem|login issue.*database)\b/i, a:'For database and e-resources access issues, contact <strong>Rani Anand</strong>.'},
+  {q:/\b(medical librarian|who can help.*pubmed|contact.*pubmed|who should i contact.*pubmed)\b/i, a:'For medical databases, PubMed, Embase, CINAHL, and systematic reviews, contact <strong>Jason Fetty</strong>.'},
   {q:/\b(library hours|opening hours|closing hours|open today|closed today|open now|when.*open|when.*close|what time.*open|what time.*close|habshan.*open|san.*open|main campus.*open|ramadan hours|friday hours|saturday hours)\b/i, a:'For the most accurate opening and closing times, please check the official Library Hours page: <a href="https://library.ku.ac.ae/hours" target="_blank">library.ku.ac.ae/hours</a>. Hours may vary by campus and during exams, holidays, and Ramadan.'},
   {q:/\b(khalifa university|ku)\b.*\b(admission|admissions|program|programs|degree|degrees|college|colleges|school|schools|tuition|fees|scholarship|scholarships|ranking|rankings|president|vice president|chancellor|application|apply|registrar|academic calendar|semester dates|campus map)\b|\b(admission|admissions|program|programs|degree|degrees|college|colleges|school|schools|tuition|fees|scholarship|scholarships|ranking|rankings|president|vice president|chancellor|application|apply|registrar|academic calendar|semester dates|campus map)\b.*\b(khalifa university|ku)\b/i, a:'I’m <strong>LibBee</strong>, the Khalifa University <strong>Library</strong> AI Assistant, so I’m best for library resources, services, databases, research help, and staff contacts.<br><br>For general Khalifa University questions, please visit the main KU website: <a href="https://www.ku.ac.ae/" target="_blank">www.ku.ac.ae</a>. A broader university chatbot is available there for non-library questions.'},
   {q:/library hours|opening hours|what time|when.*open|when.*close/i, a:'For current library hours, please visit: <a href="https://library.ku.ac.ae/hours" target="_blank">library.ku.ac.ae/hours</a>. Hours may vary during exam periods and holidays.'},
@@ -1804,18 +1804,18 @@ function showFollowUps(intent, originalMsg){
 // Search recovery banner — appears after general answers
 // Lets user trigger a library search with one click from the topic in their message
 function showSearchRecovery(originalMsg, cm) {
-  // originalMsg here is already the corrected query (from agent corrected_query)
-  // for fallback paths it may still be raw — either way directSearch → buildBoolean will correct it
   const displayMsg = originalMsg;
-  const escapedMsg = originalMsg.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const escapedMsg = originalMsg.replace(/\\/g, '\\\\').replace(/'/g, "\'");
 
   const recovery = document.createElement('div');
   recovery.className = 'search-recovery';
   recovery.innerHTML = `
-    <span class="search-recovery-text">📚 Want academic sources on <em>"${displayMsg}"</em>?</span>
-    <button class="search-recovery-btn" onclick="directSearch('${escapedMsg}')">
-      🔍 Search Library Resources
-    </button>`;
+    <span class="search-recovery-text">📚 Would you like <em>articles</em> or <em>books</em> from the KU Library on <em>"${displayMsg}"</em>?</span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="search-recovery-btn" onclick="directSearch('articles on ${escapedMsg}')">Articles</button>
+      <button class="search-recovery-btn" onclick="directSearch('books on ${escapedMsg}')">Books</button>
+      <button class="search-recovery-btn" onclick="directSearch('articles and books on ${escapedMsg}')">Both</button>
+    </div>`;
   cm.appendChild(recovery);
 }
 
