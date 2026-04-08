@@ -1482,9 +1482,15 @@ async function sendChat(){
         const agSid = 'AG' + Date.now();
         window._primoResults[agSid] = agentResult.searchResults;
         const resultHeading = agentResult.resultsHeading || 'Relevant results found';
+        // FIX: backend sends render_results_limit=8 for synthesis, 3 for single-article
         const resultLimit = Number.isInteger(agentResult.renderResultsLimit) ? agentResult.renderResultsLimit : 3;
-        html += '<div style="margin-top:10px;font-size:.82rem;font-weight:700;color:var(--ku-blue)">📄 ' + resultHeading + ':</div>';
-        html += agentResult.searchResults.slice(0, Math.max(0, resultLimit)).map((r, i) => renderResultCard(r, i, agSid)).join('');
+        // Only render result cards when synthesis answer does NOT already embed the article list HTML
+        // (synthesis embeds <ol> list directly; non-synthesis answers rely on cards below)
+        const synthesisBaked = (agentResult.html || '').includes('<ol ') || (agentResult.html || '').includes('<ol>');
+        if (!synthesisBaked || resultLimit <= 3) {
+          html += '<div style="margin-top:10px;font-size:.82rem;font-weight:700;color:var(--ku-blue)">📄 ' + resultHeading + ':</div>';
+          html += agentResult.searchResults.slice(0, Math.max(0, resultLimit)).map((r, i) => renderResultCard(r, i, agSid)).join('');
+        }
       }
 
       // Tool badges
