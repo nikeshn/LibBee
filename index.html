@@ -597,7 +597,7 @@ async function sendChat(text, meta = {}) {
 
     if (['search_academic', 'search_medical'].includes(data.intent)) {
       const aiQuery = data.ai_tool_query || data.natural_query || question;
-      html += buildAIToolsPanel(aiQuery, data.primo_search_url || '', data.primo_ai_url || '');
+      html += buildAIToolsPanel(aiQuery, { primoDiscoveryUrl: data.primo_search_url || '', primoAiUrl: data.primo_ai_url || '', pubmedUrl: data.pubmed_search_url || '', isMedical: data.intent === 'search_medical' });
     }
 
     const msgEl = addMsg('bot', html);
@@ -664,33 +664,39 @@ function buildPrimoURL(bool, tab, scope, facets) {
   return u;
 }
 
-async function prepareSearchPlan(question, opts = {}) {
+async function buildSearchPlan(query, opts = {}) {
+  const payload = {
+    question: query,
+    peer_reviewed: !!opts.pr,
+    open_access: !!opts.oa,
+    year_from: opts.yf || null,
+    year_to: opts.yt || null,
+    resource_type: opts.resourceType || null
+  };
   try {
     const res = await fetchWithTimeout(API_URL + '/search/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question,
-        peer_reviewed: !!opts.pr,
-        open_access: !!opts.oa,
-        year_from: opts.yf || null,
-        year_to: opts.yt || null
-      })
-    });
-    if (!res.ok) throw new Error('Search plan error: ' + res.status);
+      body: JSON.stringify(payload)
+    }, 20000);
+    if (!res.ok) throw new Error('Plan error: ' + res.status);
     return await res.json();
-  } catch (e) {
-    const bool = makeBoolean(question);
-    const dbQuery = bool.replace(/[()"]/g,'').replace(/\b(AND|OR)\b/g,' ').replace(/\s+/g,' ').trim().substring(0, 500);
+  } catch (_) {
+    const bool = makeBoolean(query);
+    const cleanQuery = sanitizeBoolean(bool).replace(/[()"]/g,'').replace(/\b(AND|OR)\b/g,' ').replace(/\s+/g,' ').trim();
+    const isMedical = /\b(medicine|medical|health|clinical|nursing|pharmacy|pubmed|embase|cinahl|cochrane|uptodate|systematic review|cancer|diabetes|treatment|diagnosis|surgery|biomedical)\b/i.test(query);
     return {
-      topic: question,
-      resource_type: /\b(book|books|ebook|ebooks)\b/i.test(question) ? 'books' : 'articles',
-      is_medical: /\b(medicine|medical|health|clinical|nursing|pharmacy|pubmed|embase|cinahl|cochrane|uptodate|systematic review|cancer|diabetes|treatment|diagnosis|surgery|biomedical)\b/i.test(question),
-      ai_tool_query: question,
+      topic: cleanQuery,
+      display_topic: cleanQuery,
+      resource_type: opts.resourceType || (/\bbooks?\b/i.test(query) ? 'books' : (/\barticles?|papers?|journals?|studies?\b/i.test(query) ? 'articles' : 'both')),
+      is_medical: isMedical,
+      ai_tool_query: query,
       primo_boolean_query: bool,
-      primo_search_terms: dbQuery,
-      primo_search_url: buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', []),
-      primo_ai_url: `${PRIMO_AI_URL}${encodeURIComponent(question)}`
+      primo_all_url: buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', []),
+      primo_articles_url: buildPrimoURL(bool, 'CentralIndex', 'CentralIndex', ['rtype,include,articles']),
+      primo_books_url: buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', ['rtype,include,books']),
+      primo_ai_url: `${PRIMO_AI_URL}${encodeURIComponent(query)}`,
+      pubmed_url: isMedical ? `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(cleanQuery)}` : '',
     };
   }
 }
@@ -701,29 +707,29 @@ async function prepareSearchPlan(question, opts = {}) {
 async function executeSearch(query, opts = {}) {
   const pr = opts.pr || false, oa = opts.oa || false;
   const yf = opts.yf || '', yt = opts.yt || '';
+  const plan = await buildSearchPlan(query, { pr, oa, yf, yt, resourceType: opts.resourceType || null });
+  const bool = plan.primo_boolean_query || makeBoolean(query);
+  const dbQuery = (plan.topic || query).substring(0, 500);
+  const resourceType = plan.resource_type || opts.resourceType || 'both';
+
   const sid = 'S' + Date.now();
   window._primoResults[sid] = [];
 
-  const plan = await prepareSearchPlan(query, { pr, oa, yf, yt });
-  const bool = plan.primo_boolean_query || makeBoolean(query);
-  const dbQuery = (plan.primo_search_terms || query).substring(0, 500);
-
-  const facets = [...(pr?['tlevel,include,peer_reviewed']:[]),...(oa?['tlevel,include,open_access']:[]),...(yf||yt?[`searchcreationdate,include,${yf||'0001'}|,|${yt||'9999'}`]:[])];
-  const urlAll = plan.primo_search_url || buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', facets);
-  const urlArt = buildPrimoURL(bool, 'CentralIndex', 'CentralIndex', [...facets,'rtype,include,articles']);
-  const urlBk  = buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', [...facets,'rtype,include,books']);
+  const urlAll = plan.primo_all_url || buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', []);
+  const urlArt = plan.primo_articles_url || buildPrimoURL(bool, 'CentralIndex', 'CentralIndex', ['rtype,include,articles']);
+  const urlBk  = plan.primo_books_url || buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', ['rtype,include,books']);
 
   const cm = document.getElementById('chatMsgs');
   const loadEl = document.createElement('div'); loadEl.className = 'msg bot'; loadEl.style.maxWidth = '96%';
   loadEl.innerHTML = `<div class="av">🔍</div><div class="scard">
-    <div class="scard-title">🔍 Searching PRIMO…</div>
+    <div class="scard-title">🔍 Searching PRIMO Library Discovery…</div>
     <div class="bool-str">${bool}</div>
     <div class="slinks">
       <a class="slink all" href="${urlAll}" target="_blank">📚 All Resources</a>
       <a class="slink art" href="${urlArt}" target="_blank">📄 Articles</a>
       <a class="slink bk"  href="${urlBk}"  target="_blank">📗 Books</a>
     </div>
-    ${buildAIToolsPanel(plan.ai_tool_query || query, urlAll, plan.primo_ai_url || '')}
+    ${buildAIToolsPanel(plan.ai_tool_query || query, { primoDiscoveryUrl: urlAll, primoAiUrl: plan.primo_ai_url || '', pubmedUrl: plan.pubmed_url || '', isMedical: !!plan.is_medical })}
     <div style="margin-top:10px;font-size:.8rem;color:var(--mu);display:flex;align-items:center;gap:6px">
       <div class="typing"><span></span><span></span><span></span></div>
       <span>Fetching PRIMO results…</span>
@@ -736,7 +742,17 @@ async function executeSearch(query, opts = {}) {
     const res = await fetchWithTimeout(API_URL + '/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: dbQuery, source: 'primo', limit: 8, peer_reviewed: pr, open_access: oa, year_from: yf, year_to: yt })
+      body: JSON.stringify({
+        query: dbQuery,
+        boolean_query: bool,
+        source: 'primo',
+        limit: 8,
+        resource_type: resourceType,
+        peer_reviewed: pr,
+        open_access: oa,
+        year_from: yf,
+        year_to: yt
+      })
     });
 
     if (!res.ok) throw new Error('Search error: ' + res.status);
@@ -752,7 +768,7 @@ async function executeSearch(query, opts = {}) {
     if (data.results && data.results.length > 0) {
       html += `<div style="font-size:.82rem;font-weight:700;color:var(--ku-blue);margin:10px 0 6px">📄 ${(data.total||0).toLocaleString()} results — showing top ${data.results.length}:</div>`;
       html += data.results.map((r, i) => renderResultCard(r, i, sid)).join('');
-      html += `<div style="text-align:center;margin-top:10px"><a href="${urlAll}" target="_blank" style="display:inline-block;padding:8px 18px;background:var(--ku-blue);color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:.82rem">View all results in PRIMO →</a></div>`;
+      html += `<div style="text-align:center;margin-top:10px"><a href="${urlAll}" target="_blank" style="display:inline-block;padding:8px 18px;background:var(--ku-blue);color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:.82rem">View more in PRIMO Library Discovery →</a></div>`;
     } else if (data.error) {
       html = `<div class="error-banner">⚠️ ${data.error}</div>`;
     } else {
@@ -767,6 +783,7 @@ async function executeSearch(query, opts = {}) {
   }
   cm.scrollTop = cm.scrollHeight;
 }
+
 
 // ═══════════════════════════════════════════════════════════════
 // SEARCH TAB — doSearch()
@@ -783,27 +800,34 @@ async function doSearch() {
   const resultsDiv = document.getElementById('sResults');
 
   btn.disabled = true;
-  statusDiv.innerHTML = '<span style="color:#d97706">✏️ Building search strategy…</span>';
+  statusDiv.innerHTML = '<span style="color:#d97706">✏️ Planning search…</span>';
   resultsDiv.innerHTML = '';
 
-  const sid = 'ST' + Date.now();
-  window._primoResults[sid] = [];
-
   try {
-    const plan = await prepareSearchPlan(query, { pr, oa, yf, yt });
+    const plan = await buildSearchPlan(query, { pr, oa, yf, yt });
     const bool = plan.primo_boolean_query || makeBoolean(query);
-    const dbQuery = (plan.primo_search_terms || query).substring(0, 500);
-    const facets = [...(pr?['tlevel,include,peer_reviewed']:[]),...(oa?['tlevel,include,open_access']:[]),...(yf||yt?[`searchcreationdate,include,${yf||'0001'}|,|${yt||'9999'}`]:[])];
-    const urlAll = plan.primo_search_url || buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', facets);
-    const urlArt = buildPrimoURL(bool, 'CentralIndex', 'CentralIndex', [...facets,'rtype,include,articles']);
-    const urlBk  = buildPrimoURL(bool, 'Everything', 'MyInst_and_CI', [...facets,'rtype,include,books']);
+    const sid = 'ST' + Date.now();
+    window._primoResults[sid] = [];
+    const urlAll = plan.primo_all_url;
+    const urlArt = plan.primo_articles_url;
+    const urlBk = plan.primo_books_url;
 
-    statusDiv.innerHTML = '<span style="color:#16a34a">🔍 Searching PRIMO…</span>';
+    statusDiv.innerHTML = '<span style="color:#16a34a">🔍 Searching PRIMO Library Discovery…</span>';
 
     const res = await fetchWithTimeout(API_URL + '/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: dbQuery, source: 'primo', limit: 10, peer_reviewed: pr, open_access: oa, year_from: yf, year_to: yt })
+      body: JSON.stringify({
+        query: (plan.topic || query).substring(0, 500),
+        boolean_query: bool,
+        source: 'primo',
+        limit: 10,
+        resource_type: plan.resource_type || 'both',
+        peer_reviewed: pr,
+        open_access: oa,
+        year_from: yf,
+        year_to: yt
+      })
     });
 
     if (!res.ok) throw new Error('Search error: ' + res.status);
@@ -821,16 +845,12 @@ async function doSearch() {
       </div>
     </div>`;
 
-    html += buildAIToolsPanel(plan.ai_tool_query || query, urlAll, plan.primo_ai_url || '');
-
-    if (plan.is_medical) {
-      html += `<div style="margin:8px 0"><a href="https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(dbQuery)}" target="_blank" style="display:block;padding:8px 14px;background:#d1fae5;color:#065f46;border-radius:8px;text-decoration:none;font-weight:700;font-size:.8rem;text-align:center">🏥 Also search PubMed (medical literature) →</a></div>`;
-    }
+    html += buildAIToolsPanel(plan.ai_tool_query || query, { primoDiscoveryUrl: urlAll, primoAiUrl: plan.primo_ai_url || '', pubmedUrl: plan.pubmed_url || '', isMedical: !!plan.is_medical });
 
     if (data.results && data.results.length > 0) {
       html += `<div style="font-size:.84rem;font-weight:700;color:var(--ku-blue);margin:12px 0 6px">📄 ${(data.total||0).toLocaleString()} results — showing top ${data.results.length}:</div>`;
       html += data.results.map((r, i) => renderResultCard(r, i, sid)).join('');
-      html += `<div style="text-align:center;margin-top:12px"><a href="${urlAll}" target="_blank" style="display:inline-block;padding:10px 20px;background:var(--ku-blue);color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View all results in PRIMO →</a></div>`;
+      html += `<div style="text-align:center;margin-top:12px"><a href="${urlAll}" target="_blank" style="display:inline-block;padding:10px 20px;background:var(--ku-blue);color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View more in PRIMO Library Discovery →</a></div>`;
     } else if (data.error) {
       html += `<div class="error-banner">⚠️ ${data.error}</div>`;
     } else {
@@ -839,8 +859,7 @@ async function doSearch() {
 
     statusDiv.innerHTML = '';
     resultsDiv.innerHTML = html;
-
-  } catch(e) {
+  } catch (e) {
     statusDiv.innerHTML = '';
     resultsDiv.innerHTML = `<div class="error-banner">${e.name === 'AbortError' ? '⏳ Search timed out — server may be waking up. Please try again.' : '⚠️ ' + e.message}</div>`;
   } finally {
@@ -848,31 +867,38 @@ async function doSearch() {
   }
 }
 
+
 // ═══════════════════════════════════════════════════════════════
 // AI TOOLS PANEL
 // ═══════════════════════════════════════════════════════════════
-function buildAIToolsPanel(naturalQuery, primoDiscoveryUrl = '', primoAiUrl = '') {
+function buildAIToolsPanel(naturalQuery, options = {}) {
   const cleanQuery = (naturalQuery || '').trim();
   const nq = encodeURIComponent(cleanQuery);
-  const ebscoUrl = `https://khalifa.idm.oclc.org/login?url=http://search.ebscohost.com/login.aspx?authtype=ip,uid&profile=eds&direct=true&bquery=${nq}`;
-  const fallbackDiscovery = primoDiscoveryUrl || `${PRIMO_BASE}?query=any,contains,${encodeURIComponent(cleanQuery)}&lang=en&mode=advanced&offset=0`;
-  const fallbackPrimoAi = primoAiUrl || `${PRIMO_AI_URL}${nq}`;
+  const primoDiscoveryUrl = options.primoDiscoveryUrl || `${PRIMO_BASE}?query=any,contains,${encodeURIComponent(cleanQuery)}&lang=en&mode=advanced&offset=0`;
+  const primoAiUrl = options.primoAiUrl || `${PRIMO_AI_URL}${nq}`;
+  const pubmedUrl = options.pubmedUrl || '';
+  const isMedical = !!options.isMedical;
   return `<div class="ai-panel">
-    <div class="ai-panel-title">✨ Continue with AI Research Tools</div>
-    <div class="ai-row-label">KU Subscribed</div>
+    <div class="ai-panel-title">✨ Continue your research</div>
+    <div class="ai-row-label">🔐 KU subscribed AI tools</div>
     <div class="ai-tools-strip">
       <a class="ai-tool-chip leapspace" href="https://www.sciencedirect.com/leapspace?query=${nq}" target="_blank">🔬 LeapSpace</a>
       <a class="ai-tool-chip scopus" href="https://www-scopus-com.khalifa.idm.oclc.org/pages/ai?query=${nq}" target="_blank">🔭 Scopus AI</a>
-      <a class="ai-tool-chip ebscoai" href="${ebscoUrl}" target="_blank">📰 EBSCO AI</a>
-      <a class="ai-tool-chip primoai" href="${fallbackPrimoAi}" target="_blank">⭐ PRIMO AI Assistant</a>
+      <a class="ai-tool-chip ebscoai" href="https://research-ebsco-com.khalifa.idm.oclc.org/c/ntdlkp/search?q=${nq}" target="_blank">📰 EBSCO AI</a>
+      <a class="ai-tool-chip primoai" href="${primoAiUrl}" target="_blank">⭐ PRIMO AI Assistant</a>
     </div>
-    <div class="ai-row-label">More Options</div>
+    <div class="ai-row-label">🆓 Open AI tools</div>
     <div class="ai-tools-strip">
       <a class="ai-tool-chip consensus" href="https://consensus.app/results/?q=${nq}" target="_blank">🧬 Consensus</a>
-      <a class="ai-tool-chip primoai" href="${fallbackDiscovery}" target="_blank">📚 PRIMO Library Discovery</a>
+    </div>
+    <div class="ai-row-label">📚 More results</div>
+    <div class="ai-tools-strip">
+      <a class="ai-tool-chip primoai" href="${primoDiscoveryUrl}" target="_blank">📚 PRIMO Library Discovery</a>
+      ${isMedical && pubmedUrl ? `<a class="ai-tool-chip scispace" href="${pubmedUrl}" target="_blank">🏥 PubMed</a>` : ''}
     </div>
   </div>`;
 }
+
 
 // ═══════════════════════════════════════════════════════════════
 // RESULT CARD + CITATION GENERATOR
