@@ -892,6 +892,9 @@ function buildAIToolsPanel(naturalQuery, options = {}) {
     <div class="ai-row-label">🆓 Open AI tools</div>
     <div class="ai-tools-strip">
       <a class="ai-tool-chip consensus" href="https://consensus.app/results/?q=${nq}" target="_blank">🧬 Consensus</a>
+      <a class="ai-tool-chip openalex" href="https://openalex.org/works?page=1&sort=relevance_score:desc&search.semantic=${encodeURIComponent(cleanQuery.replace(/\s+/g, "+"))}" target="_blank">🌐 OpenAlex</a>
+      <a class="ai-tool-chip scispace" href="https://scispace.com/search?q=${nq}" target="_blank">🧪 SciSpace</a>
+      <a class="ai-tool-chip perplexity" href="https://www.perplexity.ai/search?q=${nq}" target="_blank">🔎 Perplexity</a>
     </div>
     <div class="ai-row-label">📚 More results</div>
     <div class="ai-tools-strip">
