@@ -871,7 +871,6 @@ async function doSearch() {
     window._primoResults[sid] = data.results || [];
 
     let html = '';
-    const corrected = plan.topic && plan.topic.toLowerCase() !== query.toLowerCase() ? plan.topic : null;
     html += `<div class="scard">
       <div class="scard-title">🔍 Search Strategy</div>
       ${corrected ? `<div style="font-size:.78rem;color:#d97706;margin-bottom:6px">✏️ Corrected to: <em>${corrected}</em></div>` : ''}
