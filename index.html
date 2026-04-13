@@ -303,8 +303,11 @@ function makeSessionId() {
     : 'libbee-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 }
 
-let libbeeSessionId = localStorage.getItem(STORAGE_KEYS.sessionId) || makeSessionId();
-localStorage.setItem(STORAGE_KEYS.sessionId, libbeeSessionId);
+let libbeeSessionId = (function() {
+  try { return localStorage.getItem(STORAGE_KEYS.sessionId) || makeSessionId(); }
+  catch(_) { return makeSessionId(); }
+})();
+try { localStorage.setItem(STORAGE_KEYS.sessionId, libbeeSessionId); } catch(_) {}
 
 let recentSearchContexts = [];
 try {
@@ -313,13 +316,18 @@ try {
 } catch (_) {
   recentSearchContexts = [];
 }
-let activeSearchContextId = localStorage.getItem(STORAGE_KEYS.activeContextId) || '';
+let activeSearchContextId = (function() {
+  try { return localStorage.getItem(STORAGE_KEYS.activeContextId) || ''; }
+  catch(_) { return ''; }
+})();
 
 function persistClientState() {
-  localStorage.setItem(STORAGE_KEYS.sessionId, libbeeSessionId);
-  localStorage.setItem(STORAGE_KEYS.searchContexts, JSON.stringify(recentSearchContexts.slice(0, 5)));
-  if (activeSearchContextId) localStorage.setItem(STORAGE_KEYS.activeContextId, activeSearchContextId);
-  else localStorage.removeItem(STORAGE_KEYS.activeContextId);
+  try {
+    localStorage.setItem(STORAGE_KEYS.sessionId, libbeeSessionId);
+    localStorage.setItem(STORAGE_KEYS.searchContexts, JSON.stringify(recentSearchContexts.slice(0, 5)));
+    if (activeSearchContextId) localStorage.setItem(STORAGE_KEYS.activeContextId, activeSearchContextId);
+    else localStorage.removeItem(STORAGE_KEYS.activeContextId);
+  } catch(_) {}
 }
 
 function upsertSearchContext(ctx) {
