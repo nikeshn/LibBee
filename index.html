@@ -191,7 +191,7 @@ header{background:var(--ku-blue);color:#fff;padding:10px 16px;display:flex;align
   <div class="msgs" id="chatMsgs">
     <div class="msg bot">
       <div class="av">🐝</div>
-      <div class="bub">Hello! I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant 👋<br><br>
+      <div class="bub" id="initial-greeting">Hello! I'm <strong>LibBee</strong>, the Khalifa University Library AI Assistant 👋<br><br>
       I can help you find articles and books, search databases, access full text, request Interlibrary Loan (ILL), and answer library questions. What would you like help with?</div>
     </div>
   </div>
@@ -1146,6 +1146,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   buildDB('');
   console.log('LibBee loaded — API:', API_URL);
+  // Load runtime config — updates greeting and shows announcement
+  fetch(API_URL + '/admin/public-config')
+    .then(r => r.ok ? r.json() : null)
+    .then(cfg => {
+      if (!cfg) return;
+      // Update initial greeting if welcome_message is set in admin
+      if (cfg.welcome_message && cfg.welcome_message.trim()) {
+        const g = document.getElementById('initial-greeting');
+        if (g) g.innerHTML = cfg.welcome_message;
+      }
+      // Show announcement banner if set in admin
+      if (cfg.announcement && cfg.announcement.trim()) {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'margin:8px 12px;padding:10px 14px;border-radius:10px;'
+          + 'background:#fffbeb;border:1px solid #fde68a;font-size:.82rem;color:#92400e;'
+          + 'font-weight:600;';
+        banner.innerHTML = '📢 ' + cfg.announcement;
+        const msgs = document.getElementById('chatMsgs');
+        if (msgs) msgs.insertBefore(banner, msgs.firstChild);
+      }
+    })
+    .catch(() => {});
 });
 </script>
 </body>
