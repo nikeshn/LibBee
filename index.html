@@ -371,13 +371,7 @@ var chatHistory = [];
 var isSending = false;
 
 function promptFindArticles() {
-  var input = document.getElementById('chatIn');
-  if (!input) return;
-  showChatUI();
-  input.value = 'Find articles on ';
-  input.focus();
-  var len = input.value.length;
-  input.setSelectionRange(len, len);
+  wlcAskSubject();
 }
 
 // ── Welcome screen helpers (explicitly global) ─────────────────────────────
@@ -917,9 +911,7 @@ async function executeSearch(query, opts = {}) {
     ${correctionHtml}
     <div class="bool-str">${bool}</div>
     <div class="slinks">
-      <a class="slink all" href="${urlAll}" target="_blank">📚 All Resources</a>
-      <a class="slink art" href="${urlArt}" target="_blank">📄 Articles</a>
-      <a class="slink bk"  href="${urlBk}"  target="_blank">📗 Books</a>
+      <a class="slink all" href="${urlAll}" target="_blank">📚 Search in PRIMO Library Discovery</a>
     </div>
     <div style="margin-top:10px;font-size:.8rem;color:var(--mu);display:flex;align-items:center;gap:6px">
       <div class="typing"><span></span><span></span><span></span></div>
@@ -1038,9 +1030,7 @@ async function doSearch() {
       ${corrected ? `<div style="font-size:.78rem;color:#d97706;margin-bottom:6px">✏️ Corrected to: <em>${corrected}</em></div>` : ''}
       <div class="bool-str">${bool}</div>
       <div class="slinks">
-        <a class="slink all" href="${urlAll}" target="_blank">📚 All Resources</a>
-        <a class="slink art" href="${urlArt}" target="_blank">📄 Articles</a>
-        <a class="slink bk"  href="${urlBk}"  target="_blank">📗 Books</a>
+        <a class="slink all" href="${urlAll}" target="_blank">📚 Search in PRIMO Library Discovery</a>
       </div>
     </div>`;
 
